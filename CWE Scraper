@@ -1,0 +1,251 @@
+from urllib.request import urlopen as uReq
+from bs4 import BeautifulSoup as soup
+
+#-----------------------------------------------------------------*
+# scrapeCWE will scrape a CWE web page given its URL.
+#-----------------------------------------------------------------*
+
+def scrapeCWE(CWE_id_number):
+
+    # Choose url of CWE to be scraped
+
+    my_url = ("https://cwe.mitre.org/data/definitions/{0}.html".format(CWE_id_number))
+
+    uClient = uReq(my_url)
+    page_html = uClient.read()
+    uClient.close()
+
+    ps = soup(page_html, "html.parser")
+
+    # Web page is ready to scrape
+
+    cwe_name = ps.h2.contents # Gets the title of the CWE
+
+    print(cwe_name[0])
+    print("")
+
+    #---------------------------------------------------->
+    # Finding the Applicable Platforms of the CWE
+    #---------------------------------------------------->
+
+    # This code block finds the correct category, and then
+    # proceeds to go to the correct div tag to work inside of.
+
+    try:
+        container = ps.find("div",{"id":"Applicable_Platforms"})
+
+        first_div = container.div
+        target_div = first_div.findNextSibling()
+
+        first_div = target_div.div.div              
+        language_div = first_div                       
+
+        temp = language_div
+
+    except:
+        None
+
+    #------------------------------------------
+
+    # Creates empty lists for all of the possible platforms
+    # that the CWE could be in, so that they are ready to be
+    # filled, if the program finds the corresponding category.
+
+    languages = []
+    operating_systems = []
+    architectures = []
+    paradigms = []
+    technologies = []
+
+    #---------------Language-------------------
+
+    try:
+        if language_div.p.contents[0] == "Languages":
+            temp = temp.findNext().findNext()
+
+            for i in range(len(language_div) - 2):
+                lang = temp.p.contents[0].strip()
+                frequency = temp.p.span.contents[0].strip()
+                languages.append([lang,frequency])
+                try:
+                    if (temp.findNextSibling().contents[0] == "Technologies"):
+                        temp = temp.findNextSibling()
+                        break
+                except:
+                    None
+                temp = temp.findNextSibling()
+    except:
+        None
+
+    #------------Operating Systems-------------    
+
+
+    try:
+        if temp.contents[0] == "Operating Systems" or language_div.p.contents[0] == "Operating Systems":
+            temp = temp.findNextSibling()
+            os = temp.p.contents[0].strip()
+            frequency = temp.p.span.contents[0].strip()
+            operating_systems.append([os,frequency])
+            while (temp.findNextSibling() != None):
+                temp = temp.findNextSibling()
+                os = temp.p.contents[0].strip()
+                frequency = temp.p.span.contents[0].strip()
+                operating_systems.append([os,frequency])
+    except:
+        None
+
+    #--------------Architectures---------------    
+
+    try:
+        if temp.contents[0] == "Architectures" or language_div.p.contents[0] == "Architectures":
+            temp = temp.findNextSibling()
+            arch = temp.p.contents[0].strip()
+            frequency = temp.p.span.contents[0].strip()
+            architectures.append([arch,frequency])
+            while (temp.findNextSibling() != None):
+                temp = temp.findNextSibling()
+                arch = temp.p.contents[0].strip()
+                frequency = temp.p.span.contents[0].strip()
+                operating_systems.append([arch,frequency])
+    except:
+        None
+
+    #----------------Paradigms-----------------    
+
+    try:
+        if temp.contents[0] == "Paradigms" or language_div.p.contents[0] == "Paradigms":
+            temp = temp.findNextSibling()
+            para = temp.p.contents[0].strip()
+            frequency = temp.p.span.contents[0].strip()
+            paradigms.append([para,frequency])
+            while (temp.findNextSibling() != None):
+                temp = temp.findNextSibling()
+                para = temp.p.contents[0].strip()
+                frequency = temp.p.span.contents[0].strip()
+                operating_systems.append([para,frequency])
+    except:
+        None   
+
+    #--------------Technologies----------------    
+        
+    try:        
+        if temp.contents[0] == "Technologies" or language_div.p.contents[0] == "Technologies":
+            temp = temp.findNextSibling()
+            tech = temp.p.contents[0].strip()
+            frequency = temp.p.span.contents[0].strip()
+            technologies.append([tech,frequency])
+            while (temp.findNextSibling() != None):
+                temp = temp.findNextSibling()
+                tech = temp.p.contents[0].strip()
+                frequency = temp.p.span.contents[0].strip()
+                technologies.append([tech,frequency])
+    except:
+        None
+
+    #--------------Print to Check--------------
+
+    applicable_platforms = [languages,operating_systems,architectures,paradigms,technologies]
+    
+    print("Applicable Platforms:")
+    for aList in applicable_platforms:
+        if aList != []:
+            print(aList)
+            print("")
+
+    #---------End of Applicable Platform Finders---------X
+
+    #---------------------------------------------------->
+    # Finding the Observed Examples of CVEs
+    #---------------------------------------------------->
+
+    try: 
+
+        container = ps.find("div",{"id":"Observed_Examples"})
+
+        first_div = container.div
+
+        target_div = first_div.findNextSibling()
+
+        cve_table = target_div.div.div.table
+
+        cve_list = []
+
+        cve_item = cve_table.tr
+
+        for i in range(int(len(cve_table) / 2) - 1):
+            cve_item = cve_item.findNextSibling()
+            cve_list.append(cve_item.a.contents)
+
+        print("CVE List: ", cve_list)
+        print("There are", len(cve_list), "observed CVEs.")
+        print("")
+
+    except:
+        None
+        
+    #---------------End of Observed CVEs-----------------X   
+
+    #---------------------------------------------------->
+    # Finding the Detection Methods
+    #---------------------------------------------------->
+
+    # This code block finds the correct category, and then
+    # proceeds to go to the correct div tag to work inside of.
+
+    detection_methods = []
+
+    try:
+        container = ps.find("div",{"id":"Detection_Methods"})
+
+        first_div = container.div
+        target_div = first_div.findNextSibling()
+
+        det_methods_table = target_div.div.div.table
+
+        det_item = det_methods_table.tr    
+
+        while (det_item != None):   
+            method = det_item.td.p.contents[0].strip()
+            try:
+                effectiveness = (det_item.findAll("p"))[-1].contents[0]
+                detection_methods.append([method,effectiveness])
+            except:
+                detection_methods.append(method)
+            det_item = det_item.findNextSibling()
+
+        print("Detection Methods")
+        print(detection_methods)
+        print("There are", len(detection_methods), "detection methods.")
+        print("")
+            
+    except:
+        None
+
+    #--------------End of Detection Methods--------------X
+
+    #---------------------------------------------------->
+    # Finding the Detection Methods
+    #---------------------------------------------------->    
+        
+
+
+
+
+
+
+
+
+
+    
+#------------------------------Main-------------------------------#
+
+def main():
+    id_num = "Start"
+    while True:
+        print("----------------------------------------------")
+        id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
+        if (id_num == -1):
+            break
+        scrapeCWE(id_num)
+
+main()
