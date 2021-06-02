@@ -6,8 +6,7 @@ import pandas as pd
 from neo4j import GraphDatabase
 
 #-----------------------------------------
-# Author : Bryce Leighton                |
-# Last Updated : June 1                  |
+# Last Updated : June 2                  |
 #-----------------------------------------
 
 
@@ -24,8 +23,8 @@ from neo4j import GraphDatabase
 # scrapeCWE will scrape a CWE web page given its URL.
 #-----------------------------------------------------------------*
 
-def scrapeCWE(CWE_id_number, execution_commands, Neo4jBoolean):
-
+def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
+    
     cwe_name = " "
 
     try:
@@ -208,7 +207,7 @@ def scrapeCWE(CWE_id_number, execution_commands, Neo4jBoolean):
 
         for i in range(int(len(cve_table) / 2) - 1):
             cve_item = cve_item.findNextSibling()
-            cve_list.append(cve_item.a.contents)
+            cve_list.append(cve_item.a.contents[0])
 
         print("CVE List: ", cve_list)
         print("There are", len(cve_list), "observed CVEs.")
@@ -341,7 +340,7 @@ def scrapeCWE(CWE_id_number, execution_commands, Neo4jBoolean):
 
     #-----------------End of Relationships---------------X
 
-##   Variables
+##  Important Variables in scrapeCWE
 ##CWE_id_number
 ##cwe_name
 ##languages        #
@@ -362,50 +361,83 @@ def scrapeCWE(CWE_id_number, execution_commands, Neo4jBoolean):
     #---------------------------------------------------------------------->
 
     if Neo4jBoolean == True or Neo4jBoolean == False:
+        
         variable_name = "CWE" + str(CWE_id_number)
 
-        neo4j_create_statement = "({0}:CWE {{name:"'"{1}"'",id_number:{2}".format(variable_name,cwe_name,CWE_id_number)
+        neo4j_create_statement = "create({0}:CWE {{name:"'"{1}"'",id_number:{2}".format(variable_name,cwe_name,CWE_id_number)
         neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
-        execution_commands += neo4j_create_statement
+        print("Neo4j create CWE statement: ",neo4j_create_statement)
+        execute_commands(neo4j_create_statement)
+        
+        count = 1
+        apforms_sentence = "match (a:CWE) where a.name = "'"{}"'" ".format(cwe_name)
+        create_section = "create "
 
-##        if languages != []:
-##            lang_sentence = ",languages:"
-##            for item in languages:
-##                lang_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
-##            print(lang_sentence)
-##            neo4j_create_statement += lang_sentence
-##
-##        if operating_systems != []:
-##            lang_sentence = ",operating_systems:"
-##            for item in operating_systems:
-##                os_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
-##            print(os_sentence)
-##            neo4j_create_statement += os_sentence
-##
-##        if architectures != []:
-##            arch_sentence = ",architectures:"
-##            for item in architectures:
-##                arch_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
-##            print(arch_sentence)
-##            neo4j_create_statement += arch_sentence
-##
-##        if paradigms != []:
-##            paradigms_sentence = ",paradigms:"
-##            for item in paradigms:
-##                paradigms_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
-##            print(paradigms_sentence)
-##            neo4j_create_statement += paradigms_sentence
-##
-##        if technologies != []:
-##            tech_sentence = ",technologies:"
-##            for item in technologies:
-##                tech_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
-##            print(tech_sentence)
-##            neo4j_create_statement += tech_sentence
-##            
-##        neo4j_create_statement += ",relevant_cves:{},detection_methods:{},".format(cve_list,detection_methods)
+        #--------------Applicable Platform Relationship Code-----------------
+    
+        for language in languages:
+            if language[0] not in ap_nodes[0]:
+                ap_nodes[0].append(language[0])
+                create_node = "create (a:Language {{name: "'"{}"'"}})".format(language[0])
+                execute_commands(create_node)
+                
+            apforms_sentence += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count,language[0])
+            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1],count)
+            count += 1
+            
+        for os in operating_systems:
+            if os[0] not in ap_nodes[0]:
+                ap_nodes[1].append(os[0])
+                create_node = "create (a:OS {{name: "'"{}"'"}})".format(os[0])
+                execute_commands(create_node)
+                
+            apforms_sentence += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count,os[0])
+            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1],count)
+            count += 1
 
-        return execution_commands
+        for arch in architectures:
+            if arch[0] not in ap_nodes[0]:
+                ap_nodes[2].append(arch[0])
+                create_node = "create (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
+                execute_commands(create_node)
+                
+            apforms_sentence += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count,arch[0])
+            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1],count)
+            count += 1
+
+        for paradigm in paradigms:
+            if paradigm[0] not in ap_nodes[0]:
+                ap_nodes[3].append(paradigm[0])
+                create_node = "create (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
+                execute_commands(create_node)
+                
+            apforms_sentence += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count,paradigm[0])
+            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1],count)
+            count += 1
+
+        for tech in technologies:
+            if tech[0] not in ap_nodes[0]:
+                ap_nodes[4].append(tech[0])
+                create_node = "create (a:Technology {{name: "'"{}"'"}})".format(tech[0])
+                execute_commands(create_node)
+
+            apforms_sentence += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count,tech[0])
+            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
+            count += 1
+
+        if len(create_section) != 7:
+            create_section = create_section[:7] + create_section[8:]
+            final_statement = apforms_sentence + create_section
+            print("Final statement into Neo4j ",final_statement)
+            execute_commands(final_statement)
+
+        #-------------------------------------------------------------------X
+
+        #----------------Detection Methods Relationship Code-----------------
+
+        return ap_nodes
+
+
 
         
         
@@ -436,23 +468,45 @@ def execute_commands(transaction_execution_commands):
 #-------------------------Main Functions-------------------------->
 
 def forMain():
-    start = int(input("Which CWE ID to start at? "))
-    stop = int(input("Which CWE ID to stop at? ")) + 1
-    for i in range(start,stop):
+    cwe_to_add = []
+    answer = None
+
+    ap_nodes = [[],[],[],[],[]]
+
+##    lang_nodes = [0]        
+##    os_nodes = [1] 
+##    arch_nodes = [2]     
+##    para_nodes = [3]        
+##    tech_nodes = [4]
+        
+    while True:
+        answer = int(input("Enter CWE ID to put into database. Enter -1 to stop adding CWEs. "))
+        if answer == -1:
+            break
+        cwe_to_add.append(answer)
+    for cwe in cwe_to_add:
         print("----------------------------------------------")
-        scrapeCWE(i, [], False)
+        scrapeCWE(cwe,ap_nodes,False)
 
 #----------------------------------------------------
 
 def whileMain():
     id_num = None
 
-    while True:
+    ap_nodes = [[],[],[],[],[]]
+
+##    lang_nodes = [0]        
+##    os_nodes = [1] 
+##    arch_nodes = [2]     
+##    para_nodes = [3]        
+##    tech_nodes = [4]
+
+    while id_num != -1:
         print("----------------------------------------------")
         id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
         if (id_num == -1):
             break
-        scrapeCWE(id_num, [], False)
+        scrapeCWE(id_num,ap_nodes,False)
 
 #----------------------------------------------------
 
@@ -462,15 +516,16 @@ def addNeoInfo():
     check = input("Are you sure you want to import data to Neo4j? This requires an open Neo4j database.")
     last_check = input("Are you sure you wish to import data? Cancel program if not.")
 
-    execution_commands = "create "
+    ap_nodes = [[],[],[],[],[]]
+    
+##    lang_nodes = [0]        
+##    os_nodes = [1] 
+##    arch_nodes = [2]     
+##    para_nodes = [3]        
+##    tech_nodes = [4]
 
     for i in range(1, num_of_cwe + 1):
-        execution_commands = scrapeCWE(i, execution_commands, True)
-        if i != num_of_cwe:
-            execution_commands += ", "
-   
-    print(execution_commands)
-    execute_commands(execution_commands)
+        ap_nodes = execution_commands = scrapeCWE(i,ap_nodes,True)
     
     
 
