@@ -23,7 +23,7 @@ from neo4j import GraphDatabase
 # scrapeCWE will scrape a CWE web page given its URL.
 #-----------------------------------------------------------------*
 
-def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
+def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
     
     cwe_name = " "
 
@@ -360,7 +360,7 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
     #
     #---------------------------------------------------------------------->
 
-    if Neo4jBoolean == True or Neo4jBoolean == False:
+    if Neo4jBoolean == True:
         
         variable_name = "CWE" + str(CWE_id_number)
 
@@ -368,16 +368,16 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
         neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
         print("Neo4j create CWE statement: ",neo4j_create_statement)
         execute_commands(neo4j_create_statement)
+
+        #--------------Applicable Platform Relationship Code-----------------
         
         count = 1
         apforms_sentence = "match (a:CWE) where a.name = "'"{}"'" ".format(cwe_name)
         create_section = "create "
-
-        #--------------Applicable Platform Relationship Code-----------------
     
         for language in languages:
-            if language[0] not in ap_nodes[0]:
-                ap_nodes[0].append(language[0])
+            if language[0] not in usnode[0][0]:
+                usnode[0][0].append(language[0])
                 create_node = "create (a:Language {{name: "'"{}"'"}})".format(language[0])
                 execute_commands(create_node)
                 
@@ -386,8 +386,8 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
             count += 1
             
         for os in operating_systems:
-            if os[0] not in ap_nodes[0]:
-                ap_nodes[1].append(os[0])
+            if os[0] not in usnode[0][0]:
+                usnode[0][1].append(os[0])
                 create_node = "create (a:OS {{name: "'"{}"'"}})".format(os[0])
                 execute_commands(create_node)
                 
@@ -396,8 +396,8 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
             count += 1
 
         for arch in architectures:
-            if arch[0] not in ap_nodes[0]:
-                ap_nodes[2].append(arch[0])
+            if arch[0] not in usnode[0][0]:
+                usnode[0][2].append(arch[0])
                 create_node = "create (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
                 execute_commands(create_node)
                 
@@ -406,8 +406,8 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
             count += 1
 
         for paradigm in paradigms:
-            if paradigm[0] not in ap_nodes[0]:
-                ap_nodes[3].append(paradigm[0])
+            if paradigm[0] not in usnode[0][0]:
+                usnode[0][3].append(paradigm[0])
                 create_node = "create (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
                 execute_commands(create_node)
                 
@@ -416,8 +416,8 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
             count += 1
 
         for tech in technologies:
-            if tech[0] not in ap_nodes[0]:
-                ap_nodes[4].append(tech[0])
+            if tech[0] not in usnode[0][0]:
+                usnode[0][4].append(tech[0])
                 create_node = "create (a:Technology {{name: "'"{}"'"}})".format(tech[0])
                 execute_commands(create_node)
 
@@ -435,7 +435,53 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
 
         #----------------Detection Methods Relationship Code-----------------
 
-        return ap_nodes
+        count = 1
+        detmet_sentence = "match (a:CWE) where a.name = "'"{}"'" ".format(cwe_name)
+        create_section = "create "
+            
+        for detmet in detection_methods:
+
+            if detmet[0] not in usnode[1]:
+                usnode[1].append(detmet[0])
+                create_node = "create (a:Detection_Method {{name: "'"{}"'"}})".format(detmet[0])
+                execute_commands(create_node)
+
+            detmet_sentence += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count,detmet[0])
+
+            # If this block of code causes an error, it means the detection method did not have
+            # a listed effectiveness and will cause an error since it will not be a parsable string.
+            # So, the effectiveness will just be listed as N/A for that detection method for the CWE.
+            try:
+                if detmet[1][0] != " ":
+                    effectiveness = " ".join(detmet[1].split(" ")[1:])     
+                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
+                else:
+                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                count += 1
+            except:
+                create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                count += 1
+
+        if len(create_section) != 7:
+            create_section = create_section[:7] + create_section[8:]
+            final_statement = detmet_sentence + create_section
+            print("Final statement into Neo4j ",final_statement)
+            execute_commands(final_statement)
+
+        #-------------------------------------------------------------------X
+
+        #------------------CWE - to - CWE Relationship Code------------------
+
+        
+        
+
+
+            
+
+        #-------------------------------------------------------------------X
+        
+
+        return usnode
 
 
 
@@ -457,27 +503,22 @@ def scrapeCWE(CWE_id_number, ap_nodes, Neo4jBoolean):
 # uri = "host link"
 # auth = ("neo4j", password) of database being used
 
-def execute_commands(transaction_execution_commands):
-    data_base_connection = GraphDatabase.driver(uri = "bolt://localhost:7687", auth=("neo4j", "54321"))
-    session = data_base_connection.session()
-    session.run(transaction_execution_commands)
+def execute_commands(transaction_execution_commands,boolean = True):
+    if boolean is True:
+        data_base_connection = GraphDatabase.driver(uri = "bolt://localhost:7687", auth=("neo4j", "54321"))
+        session = data_base_connection.session()
+        session.run(transaction_execution_commands)
 
 #--------------------------------------------------------X
 
 
 #-------------------------Main Functions-------------------------->
 
-def forMain():
+def forMain(node_list):
     cwe_to_add = []
     answer = None
 
-    ap_nodes = [[],[],[],[],[]]
-
-##    lang_nodes = [0]        
-##    os_nodes = [1] 
-##    arch_nodes = [2]     
-##    para_nodes = [3]        
-##    tech_nodes = [4]
+    usnode = node_list
         
     while True:
         answer = int(input("Enter CWE ID to put into database. Enter -1 to stop adding CWEs. "))
@@ -486,46 +527,35 @@ def forMain():
         cwe_to_add.append(answer)
     for cwe in cwe_to_add:
         print("----------------------------------------------")
-        scrapeCWE(cwe,ap_nodes,False)
+        usnode = scrapeCWE(cwe,usnode,True)
 
 #----------------------------------------------------
 
-def whileMain():
+def whileMain(node_list):
     id_num = None
-
-    ap_nodes = [[],[],[],[],[]]
-
-##    lang_nodes = [0]        
-##    os_nodes = [1] 
-##    arch_nodes = [2]     
-##    para_nodes = [3]        
-##    tech_nodes = [4]
+    
+    usnode = node_list
 
     while id_num != -1:
         print("----------------------------------------------")
         id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
         if (id_num == -1):
             break
-        scrapeCWE(id_num,ap_nodes,False)
+        usnode = scrapeCWE(id_num,usnode,True)
 
 #----------------------------------------------------
 
-def addNeoInfo():
+def addNeoInfo(node_list):
     
     num_of_cwe = int(input("How many CWEs would you like to add? "))
     check = input("Are you sure you want to import data to Neo4j? This requires an open Neo4j database.")
     last_check = input("Are you sure you wish to import data? Cancel program if not.")
 
-    ap_nodes = [[],[],[],[],[]]
+    usnode = node_list
     
-##    lang_nodes = [0]        
-##    os_nodes = [1] 
-##    arch_nodes = [2]     
-##    para_nodes = [3]        
-##    tech_nodes = [4]
 
     for i in range(1, num_of_cwe + 1):
-        ap_nodes = execution_commands = scrapeCWE(i,ap_nodes,True)
+        usnode = execution_commands = scrapeCWE(i,usnode,True)
     
     
 
@@ -534,16 +564,18 @@ def addNeoInfo():
 #------------------------------Main-------------------------------#
 
 def main():
+
+    used_nodes_list = [[[],[],[],[],[]],[]]
     
     print("The for-loop or while-loop main?")
     print("Enter 1 for for-loop, 2 for while-loop, or 3 for Neo4j import.")
     answer = int(input("Enter number: "))
     if answer == 1:
-        forMain()
+        forMain(used_nodes_list)
     elif answer == 2:
-        whileMain()
+        whileMain(used_nodes_list)
     elif answer == 3:
-        addNeoInfo()
+        addNeoInfo(used_nodes_list)
     
 
 main()
