@@ -1,28 +1,55 @@
 from urllib.request import urlopen as uReq
 from bs4 import BeautifulSoup as soup
+import numpy as np
+import random
+import pandas as pd
+from neo4j import GraphDatabase
+
+#-----------------------------------------
+# Author : Bryce Leighton                |
+# Last Updated : June 1                  |
+#-----------------------------------------
+
+
+
+#------------------------------------------------------------------------->
+#
+#                           Web Scraper Code
+#
+#------------------------------------------------------------------------->
+
+
 
 #-----------------------------------------------------------------*
 # scrapeCWE will scrape a CWE web page given its URL.
 #-----------------------------------------------------------------*
 
-def scrapeCWE(CWE_id_number):
+def scrapeCWE(CWE_id_number, execution_commands, Neo4jBoolean):
 
-    # Choose url of CWE to be scraped
+    cwe_name = " "
 
-    my_url = ("https://cwe.mitre.org/data/definitions/{0}.html".format(CWE_id_number))
+    try:
 
-    uClient = uReq(my_url)
-    page_html = uClient.read()
-    uClient.close()
+        # Choose url of CWE to be scraped
 
-    ps = soup(page_html, "html.parser")
+        my_url = ("https://cwe.mitre.org/data/definitions/{0}.html".format(CWE_id_number))
 
-    # Web page is ready to scrape
+        uClient = uReq(my_url)
+        page_html = uClient.read()
+        uClient.close()
 
-    cwe_name = ps.h2.contents # Gets the title of the CWE
+        ps = soup(page_html, "html.parser")
 
-    print(cwe_name[0])
-    print("")
+        # Web page is ready to scrape
+
+        cwe_name = ps.h2.contents[0] # Gets the title of the CWE
+
+        print(cwe_name)
+        print("")
+
+    except:
+        print("The url", my_url, "does not exist.")
+        print("")
 
     #---------------------------------------------------->
     # Finding the Applicable Platforms of the CWE
@@ -145,18 +172,27 @@ def scrapeCWE(CWE_id_number):
     #--------------Print to Check--------------
 
     applicable_platforms = [languages,operating_systems,architectures,paradigms,technologies]
-    
-    print("Applicable Platforms:")
+
+    boole = False
+
     for aList in applicable_platforms:
         if aList != []:
-            print(aList)
-            print("")
+            boole = True
+
+    if boole == True:  
+        print("Applicable Platforms:")
+        for aList in applicable_platforms:
+            if aList != []:
+                print(aList)
+                print("")
 
     #---------End of Applicable Platform Finders---------X
 
     #---------------------------------------------------->
     # Finding the Observed Examples of CVEs
     #---------------------------------------------------->
+
+    cve_list = []
 
     try: 
 
@@ -167,8 +203,6 @@ def scrapeCWE(CWE_id_number):
         target_div = first_div.findNextSibling()
 
         cve_table = target_div.div.div.table
-
-        cve_list = []
 
         cve_item = cve_table.tr
 
@@ -224,28 +258,237 @@ def scrapeCWE(CWE_id_number):
     #--------------End of Detection Methods--------------X
 
     #---------------------------------------------------->
-    # Finding the Detection Methods
-    #---------------------------------------------------->    
+    # Finding the Likelihood of Exploit
+    #---------------------------------------------------->
+
+    # This code block finds the correct category, and then
+    # proceeds to go to the correct div tag to work inside of.
+
+    exploit_likelihood = []
+
+    try:
+        container = ps.find("div",{"id":"Likelihood_Of_Exploit"})
+        target_div = container.div.findNextSibling().div.div
+        exploit_likelihood = target_div.contents[0]
+        
+        print("Likelihood of Exploit:", exploit_likelihood)
+        print("")
+            
+    except:
+        None
+
+    #------------End of Likelihood of Exploit------------X
+
+
+    #---------------------------------------------------->
+    # Finding the CWE Relationships
+    #---------------------------------------------------->
+
+    # This code block finds the correct category, and then
+    # proceeds to go to the correct div tag to work inside of.
+
+    relationships = []
+    id_numbers = []
+    paired_relationships = []
+
+
+    try:
+        container = ps.find("div",{"id":"Relationships"})
+        
+        # Takes a lot of digging to get to correct tag...
+        first_div = container.div.findNextSibling() 
+        table_div = first_div.div.div.div # references the specific table
+        even_further_div = table_div.div.div.div.div.div.table
+        target_div = even_further_div.tbody 
+
+        rel_cwe = target_div.tr
+
+        while (rel_cwe != None):
+            relationships.append(rel_cwe.td.contents[0])
+            id_numbers.append(rel_cwe.td.findNextSibling().findNextSibling().contents[0])
+            rel_cwe = rel_cwe.findNextSibling()
+
+        # Checks if there is more than one relationship table
+        #----------------------------------------------------
+
+        table_div = table_div.findNextSibling()
+
+        while (table_div != None):
+            even_further_div = table_div.div.div.div.div.div.table # table tag
+            target_div = even_further_div.tbody
+
+            rel_cwe = target_div.tr
+            
+
+            while (rel_cwe != None):
+                id_number = rel_cwe.td.findNextSibling().findNextSibling().contents[0]
+                if id_number not in id_numbers:
+                    relationships.append(rel_cwe.td.contents[0])
+                    id_numbers.append(id_number)
+                rel_cwe = rel_cwe.findNextSibling()
+
+            table_div = table_div.findNextSibling()
+
+
+        for i in range(len(relationships)):
+            paired_relationships.append([relationships[i],id_numbers[i]])
+
+        print("Relationships:", paired_relationships, "Number of Relationships:", len(paired_relationships))
+        
+            
+    except:
+        None
+
+    #-----------------End of Relationships---------------X
+
+##   Variables
+##CWE_id_number
+##cwe_name
+##languages        #
+##operating_systems# These 5 variables can merge 
+##architectures    # into 'applicable_platforms' 
+##paradigms        # variable
+##technologies     #
+##cve_list
+##detection_methods
+##exploit_likelihood
+##paired_relationships
+
+
+    #---------------------------------------------------------------------->
+    #
+    #                             Neo4j CWE Import
+    #
+    #---------------------------------------------------------------------->
+
+    if Neo4jBoolean == True or Neo4jBoolean == False:
+        variable_name = "CWE" + str(CWE_id_number)
+
+        neo4j_create_statement = "({0}:CWE {{name:"'"{1}"'",id_number:{2}".format(variable_name,cwe_name,CWE_id_number)
+        neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
+        execution_commands += neo4j_create_statement
+
+##        if languages != []:
+##            lang_sentence = ",languages:"
+##            for item in languages:
+##                lang_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
+##            print(lang_sentence)
+##            neo4j_create_statement += lang_sentence
+##
+##        if operating_systems != []:
+##            lang_sentence = ",operating_systems:"
+##            for item in operating_systems:
+##                os_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
+##            print(os_sentence)
+##            neo4j_create_statement += os_sentence
+##
+##        if architectures != []:
+##            arch_sentence = ",architectures:"
+##            for item in architectures:
+##                arch_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
+##            print(arch_sentence)
+##            neo4j_create_statement += arch_sentence
+##
+##        if paradigms != []:
+##            paradigms_sentence = ",paradigms:"
+##            for item in paradigms:
+##                paradigms_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
+##            print(paradigms_sentence)
+##            neo4j_create_statement += paradigms_sentence
+##
+##        if technologies != []:
+##            tech_sentence = ",technologies:"
+##            for item in technologies:
+##                tech_sentence += ""'"{}"'" {{prevalence:""{}""}}".format(item[0],item[1].replace("(",'"').replace(")",'"'))
+##            print(tech_sentence)
+##            neo4j_create_statement += tech_sentence
+##            
+##        neo4j_create_statement += ",relevant_cves:{},detection_methods:{},".format(cve_list,detection_methods)
+
+        return execution_commands
+
+        
         
 
 
 
+        
+
+#--------------------------------------End of Web Scraper Code---------------------------------------------------X
+
+        
 
 
 
+#---------------Neo4j Method Used in Import-------------->
+        
+# uri = "host link"
+# auth = ("neo4j", password) of database being used
+
+def execute_commands(transaction_execution_commands):
+    data_base_connection = GraphDatabase.driver(uri = "bolt://localhost:7687", auth=("neo4j", "54321"))
+    session = data_base_connection.session()
+    session.run(transaction_execution_commands)
+
+#--------------------------------------------------------X
 
 
+#-------------------------Main Functions-------------------------->
 
-    
-#------------------------------Main-------------------------------#
+def forMain():
+    start = int(input("Which CWE ID to start at? "))
+    stop = int(input("Which CWE ID to stop at? ")) + 1
+    for i in range(start,stop):
+        print("----------------------------------------------")
+        scrapeCWE(i, [], False)
 
-def main():
-    id_num = "Start"
+#----------------------------------------------------
+
+def whileMain():
+    id_num = None
+
     while True:
         print("----------------------------------------------")
         id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
         if (id_num == -1):
             break
-        scrapeCWE(id_num)
+        scrapeCWE(id_num, [], False)
+
+#----------------------------------------------------
+
+def addNeoInfo():
+    
+    num_of_cwe = int(input("How many CWEs would you like to add? "))
+    check = input("Are you sure you want to import data to Neo4j? This requires an open Neo4j database.")
+    last_check = input("Are you sure you wish to import data? Cancel program if not.")
+
+    execution_commands = "create "
+
+    for i in range(1, num_of_cwe + 1):
+        execution_commands = scrapeCWE(i, execution_commands, True)
+        if i != num_of_cwe:
+            execution_commands += ", "
+   
+    print(execution_commands)
+    execute_commands(execution_commands)
+    
+    
+
+#--------------------------------------------------------X        
+         
+#------------------------------Main-------------------------------#
+
+def main():
+    
+    print("The for-loop or while-loop main?")
+    print("Enter 1 for for-loop, 2 for while-loop, or 3 for Neo4j import.")
+    answer = int(input("Enter number: "))
+    if answer == 1:
+        forMain()
+    elif answer == 2:
+        whileMain()
+    elif answer == 3:
+        addNeoInfo()
+    
 
 main()
