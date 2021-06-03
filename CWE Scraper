@@ -373,7 +373,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
         #--------------Applicable Platform Relationship Code-----------------
         
         count = 1
-        apforms_sentence = "match (a:CWE) where a.name = "'"{}"'" ".format(cwe_name)
+        apforms_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
         create_section = "create "
     
         for language in languages:
@@ -441,7 +441,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
         #----------------Detection Methods Relationship Code-----------------
 
         count = 1
-        detmet_sentence = "match (a:CWE) where a.name = "'"{}"'" ".format(cwe_name)
+        detmet_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
         create_section = "create "
             
         for detmet in detection_methods:
@@ -477,6 +477,9 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
 
         #------------------CWE - to - CWE Relationship Code------------------
 
+        count = 1
+        cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
+        create_section = "create "
         
         
 
@@ -530,7 +533,7 @@ def binsearch(list_to_check, target_number):
 # import data to Neo4j. Making it False allows you just see
 # web scrape info, and makes the program much faster.
 
-def execute_commands(transaction_execution_commands,boolean = False):
+def execute_commands(transaction_execution_commands,boolean = True):
     if boolean is True:
         data_base_connection = GraphDatabase.driver(uri = "bolt://localhost:7687", auth=("neo4j", "54321"))
         session = data_base_connection.session()
