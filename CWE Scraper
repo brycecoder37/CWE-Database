@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup as soup
 import numpy as np
 import random
 import pandas as pd
+import bisect
 from neo4j import GraphDatabase
 
 #-----------------------------------------
@@ -22,6 +23,15 @@ from neo4j import GraphDatabase
 #-----------------------------------------------------------------*
 # scrapeCWE will scrape a CWE web page given its URL.
 #-----------------------------------------------------------------*
+# CWE_id_number: ID of CWE that the method will scrape
+# --------------
+# usnode: the list of already-created nodes. This list will ensure
+# that when the program is made for several CWEs, that it won't
+# create duplicate nodes.
+# --------------
+# Neo4jBoolean: a simple True or False that will dictate whether the
+# Neo4j import method for the CWE information is ran or not.
+#------------------------------------------------------------------
 
 def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
     
@@ -75,7 +85,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
 
     # Creates empty lists for all of the possible platforms
     # that the CWE could be in, so that they are ready to be
-    # filled, if the program finds the corresponding category.
+    # filled, if the scraper finds the corresponding category.
 
     languages = []
     operating_systems = []
@@ -222,9 +232,6 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
     # Finding the Detection Methods
     #---------------------------------------------------->
 
-    # This code block finds the correct category, and then
-    # proceeds to go to the correct div tag to work inside of.
-
     detection_methods = []
 
     try:
@@ -260,9 +267,6 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
     # Finding the Likelihood of Exploit
     #---------------------------------------------------->
 
-    # This code block finds the correct category, and then
-    # proceeds to go to the correct div tag to work inside of.
-
     exploit_likelihood = []
 
     try:
@@ -282,9 +286,6 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
     #---------------------------------------------------->
     # Finding the CWE Relationships
     #---------------------------------------------------->
-
-    # This code block finds the correct category, and then
-    # proceeds to go to the correct div tag to work inside of.
 
     relationships = []
     id_numbers = []
@@ -425,6 +426,10 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
             create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
             count += 1
 
+        
+        # Checks if the create section is just "create ", because that would mean
+        # that there were no sections to add. If it isn't just "create ", then
+        # it removes the first comma so that the create clause doesn't cause an error.
         if len(create_section) != 7:
             create_section = create_section[:7] + create_section[8:]
             final_statement = apforms_sentence + create_section
@@ -494,22 +499,44 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean):
 
 #--------------------------------------End of Web Scraper Code---------------------------------------------------X
 
-        
 
+#-------------------Binary Search----------------------->
 
+def binsearch(list_to_check, target_number):
+    left = 0
+    right = len(list_to_check) - 1
+    moves = 0
+    while (left <= right):
+        mid = int((left + right) / 2)
+        moves += 1
+        print(list_to_check[mid])
+        if (list_to_check[mid] == target_number):
+            return True 
+        elif (list_to_check[mid] < target_number):
+            left = mid + 1
+        else:
+            right = mid - 1
+    
+    return False
 
-#---------------Neo4j Method Used in Import-------------->
+#-------------------------------------------------------X
+    
+#---------------Neo4j Method Used in Import------------->
         
 # uri = "host link"
 # auth = ("neo4j", password) of database being used
 
-def execute_commands(transaction_execution_commands,boolean = True):
+# Turn boolean to True or False depending on if you want to
+# import data to Neo4j. Making it False allows you just see
+# web scrape info, and makes the program much faster.
+
+def execute_commands(transaction_execution_commands,boolean = False):
     if boolean is True:
         data_base_connection = GraphDatabase.driver(uri = "bolt://localhost:7687", auth=("neo4j", "54321"))
         session = data_base_connection.session()
         session.run(transaction_execution_commands)
 
-#--------------------------------------------------------X
+#-------------------------------------------------------X
 
 
 #-------------------------Main Functions-------------------------->
