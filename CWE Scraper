@@ -45,13 +45,6 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         
     if not binsearch(usnode[2],CWE_id_number):
         bisect.insort(usnode[2],CWE_id_number)
-    # Keeping this just in case, but not sure it's actually
-    # needed, or also if it will actually help the program.
-##    else:
-##        try:
-##            scrapeCWE(CWE_id_number + 1, usnode, Neo4jBoolean, True, None)
-##        except:
-##            exit()
     
     cwe_name = " "
 
@@ -78,6 +71,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         
         print("The url", my_url, "does not exist.")
         print("")
+        exit()
 
     #---------------------------------------------------->
     # Finding the Applicable Platforms of the CWE
