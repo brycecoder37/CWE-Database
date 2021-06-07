@@ -373,7 +373,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             count += 1
             
         for os in operating_systems:
-            if os[0] not in usnode[0][0]:
+            if os[0] not in usnode[0][1]:
                 usnode[0][1].append(os[0])
                 create_node = "create (a:OS {{name: "'"{}"'"}})".format(os[0])
                 execute_commands(create_node)
@@ -383,7 +383,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             count += 1
 
         for arch in architectures:
-            if arch[0] not in usnode[0][0]:
+            if arch[0] not in usnode[0][2]:
                 usnode[0][2].append(arch[0])
                 create_node = "create (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
                 execute_commands(create_node)
@@ -393,7 +393,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             count += 1
 
         for paradigm in paradigms:
-            if paradigm[0] not in usnode[0][0]:
+            if paradigm[0] not in usnode[0][3]:
                 usnode[0][3].append(paradigm[0])
                 create_node = "create (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
                 execute_commands(create_node)
@@ -403,7 +403,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             count += 1
 
         for tech in technologies:
-            if tech[0] not in usnode[0][0]:
+            if tech[0] not in usnode[0][4]:
                 usnode[0][4].append(tech[0])
                 create_node = "create (a:Technology {{name: "'"{}"'"}})".format(tech[0])
                 execute_commands(create_node)
@@ -473,7 +473,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                 
                 # For relationship CWEs that haven't been made yet.
                 if not binsearch(usnode[2],relation[1]):
-                    scrapeCWE(relation[1],usnode,True,False,[CWE_id_number,relation[0]])
+                    usnode = scrapeCWE(relation[1],usnode,True,False,[CWE_id_number,relation[0]])
                     
                 # For relationship CWEs that HAVE been made already.
                 else:
@@ -601,7 +601,7 @@ def addNeoInfo(node_list):
     
 
     for i in range(1, num_of_cwe + 1):
-        usnode = execution_commands = scrapeCWE(i,usnode,True, True, None)
+        usnode = scrapeCWE(i,usnode,True, True, None)
     
     
 
@@ -613,6 +613,9 @@ def main():
 
     used_nodes_list = [[[],[],[],[],[]],[],[]]
 ##    used_nodes_list[0] is the 5 applicable platforms
+##    [0][0] - languages , [0][1] os , [0][2] architectures
+##    [0][3] - paradigms , [0][4] technologies
+##    ------------------------------------------------------
 ##    used_nodes_list[1] is the detection methods
 ##    used_nodes_list[2] is the CWE IDs
     
