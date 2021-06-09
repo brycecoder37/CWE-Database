@@ -232,7 +232,37 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     except:
         None
         
-    #---------------End of Observed CVEs-----------------X   
+    #---------------End of Observed CVEs-----------------X
+
+    #---------------------------------------------------->
+    # Finding the Related Attack Patterns (CAPECs)
+    #---------------------------------------------------->
+
+    capec_list = []
+
+    try: 
+
+        container = ps.find("div",{"id":"Related_Attack_Patterns"})
+
+        first_div = container.div
+
+        target_div = first_div.findNextSibling()
+
+        capec_table = target_div.div.div.table
+
+        capec = capec_table.tr
+
+        for i in range(int(len(capec_table)-1/2)):
+            capec = capec.findNextSibling()
+            capec_name_div = capec.td
+            capec_name = capec_name_div.a.contents[0]
+            capec_desc = capec_name_div.findNextSibling().contents[0]
+            capec_list.append([capec_name,capec_desc])
+                  
+    except:
+        None
+        
+    #---------------End of Finding CAPECs-----------------X
 
     #---------------------------------------------------->
     # Finding the Detection Methods
@@ -439,6 +469,34 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
         #-------------------------------------------------------------------X
 
+        #-----------------------CAPECs Relationship Code---------------------
+
+        count = 1
+        capec_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
+        create_section = "create "
+        create_capecs = "create "
+            
+        for capec in capec_list:
+
+            if binsearch(usnode[3],capec[0][6:]) is False:
+                bisect.insort(usnode[3],capec[0])
+                create_capecs += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(capec[0][6:],capec[1],count+50)
+
+            capec_sentence += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,capec[0][6:])
+    
+            create_section += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
+            count += 1
+
+        if len(create_capecs) != 7:
+            execute_commands(create_capecs[:7] + create_capecs[8:])
+
+        if len(create_section) != 7:
+            create_section = create_section[:7] + create_section[8:]
+            final_statement = capec_sentence + create_section
+            execute_commands(final_statement)
+
+        #-------------------------------------------------------------------X
+        
         #----------------Detection Methods Relationship Code-----------------
 
         count = 1
@@ -501,7 +559,6 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             # If there are no relationships for a CWE, the length of create_section
             # ("create ") will be 7 and no clauses will be inputted into Neo4j.
             if len(create_section) != 7:
-                print("At the execution for already created node!!!!!!!!!!!!!!")
                 create_section = create_section[:7] + create_section[8:]
                 final_statement = cwe_cwe_sentence + create_section
                 execute_commands(final_statement)
@@ -627,13 +684,14 @@ def addNeoInfo(node_list):
 
 def main():
 
-    used_nodes_list = [[[],[],[],[],[]],[],[]]
+    used_nodes_list = [[[],[],[],[],[]],[],[], []]
 ##    used_nodes_list[0] is the 5 applicable platforms
 ##    [0][0] - languages , [0][1] os , [0][2] architectures
 ##    [0][3] - paradigms , [0][4] technologies
 ##    ------------------------------------------------------
 ##    used_nodes_list[1] is the detection methods
 ##    used_nodes_list[2] is the CWE IDs
+##    used_nodes_list[3] is the CAPECs
     
     print("The for-loop or while-loop main?")
     print("Enter 1 for for-loop, 2 for while-loop, or 3 for Neo4j import.")
