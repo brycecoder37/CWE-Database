@@ -4,7 +4,7 @@ import bisect
 from neo4j import GraphDatabase
 
 #-----------------------------------------
-# Last Updated : June 7                  |
+# Last Updated : June 9                  |
 #-----------------------------------------
 
 
@@ -40,10 +40,26 @@ from neo4j import GraphDatabase
 # between the original CWE and the "branch" CWE
 #------------------------------------------------------------------+
 
+#------------------------------------------------------------------+
+# scrapeCWE at the current moment will web scrape the following info:
+# -------------------------------
+# - CWE Name and ID
+# - Applicable Platforms of CWE
+#   > Languages
+#   > Operating Systems
+#   > Architectures
+#   > Paradigms
+#   > Technologies
+# - Observed Examples of CVEs
+#   > CVE ID
+# - Detection Methods
+#   > Method name
+#   > Effectiveness
+# - Likelihood of Exploit
+# - CWE to CWE relationships
+#------------------------------------------------------------------+
+
 def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
-        
-    if not binsearch(usnode[2],CWE_id_number):
-        bisect.insort(usnode[2],CWE_id_number)
     
     cwe_name = " "
 
@@ -349,11 +365,12 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     #---------------------------------------------------------------------->
 
     if Neo4jBoolean == True:
-        
 
-        neo4j_create_statement = "create(z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
-        neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
-        execute_commands(neo4j_create_statement)
+        if binsearch(usnode[2],CWE_id_number) is False:
+            bisect.insort(usnode[2],CWE_id_number)
+            neo4j_create_statement = "create(z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
+            neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
+            execute_commands(neo4j_create_statement)
 
         #--------------Applicable Platform Relationship Code-----------------
         
@@ -505,7 +522,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         
         
 
-        return usnode
+    return usnode
 
 
 
