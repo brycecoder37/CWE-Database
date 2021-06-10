@@ -4,7 +4,8 @@ import bisect
 from neo4j import GraphDatabase
 
 #-----------------------------------------
-# Last Updated : June 9                  |
+# Last Updated : June 10                 |
+# Author: Bryce                          |
 #-----------------------------------------
 
 
@@ -386,6 +387,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 ##detection_methods
 ##exploit_likelihood
 ##paired_relationships
+##capec_list
 
 
     #---------------------------------------------------------------------->
@@ -396,121 +398,99 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
     if Neo4jBoolean == True:
 
+        count = 1
+        neo4j_create_nodes = "create "
+        neo4j_match_statement = ""
+        neo4j_create_rels = "create "
+
         if binsearch(usnode[2],CWE_id_number) is False:
             bisect.insort(usnode[2],CWE_id_number)
-            neo4j_create_statement = "create(z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
-            neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
-            execute_commands(neo4j_create_statement)
+            create_cwe_node = "create (z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
+            create_cwe_node += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
+            execute_commands(create_cwe_node)
+
 
         #--------------Applicable Platform Relationship Code-----------------
         
-        count = 1
-        apforms_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-        create_section = "create "
+        neo4j_match_statement += "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
     
         for language in languages:
             if language[0] not in usnode[0][0]:
                 usnode[0][0].append(language[0])
-                create_node = "create (a:Language {{name: "'"{}"'"}})".format(language[0])
-                execute_commands(create_node)
+                neo4j_create_nodes += ",(a{}:Language {{name: "'"{}"'"}})".format(count,language[0])
+                count += 1
                 
-            apforms_sentence += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count,language[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1],count)
+            neo4j_match_statement += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count,language[0])
+            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1],count)
             count += 1
             
         for os in operating_systems:
             if os[0] not in usnode[0][1]:
                 usnode[0][1].append(os[0])
-                create_node = "create (a:OS {{name: "'"{}"'"}})".format(os[0])
-                execute_commands(create_node)
+                neo4j_create_nodes  += ", (a{}:OS {{name: "'"{}"'"}})".format(count,os[0])
+                count += 1
                 
-            apforms_sentence += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count,os[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1],count)
+            neo4j_match_statement += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count,os[0])
+            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1],count)
             count += 1
 
         for arch in architectures:
             if arch[0] not in usnode[0][2]:
                 usnode[0][2].append(arch[0])
-                create_node = "create (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
-                execute_commands(create_node)
+                neo4j_create_nodes += ",(a{}:Architecture {{name: "'"{}"'"}})".format(count,arch[0])
+                count += 1
                 
-            apforms_sentence += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count,arch[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1],count)
+            neo4j_match_statement += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count,arch[0])
+            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1],count)
             count += 1
 
         for paradigm in paradigms:
             if paradigm[0] not in usnode[0][3]:
                 usnode[0][3].append(paradigm[0])
-                create_node = "create (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
-                execute_commands(create_node)
+                neo4j_create_nodes += ",(a{}:Paradigm {{name: "'"{}"'"}})".format(count,paradigm[0])
+                count += 1
                 
-            apforms_sentence += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count,paradigm[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1],count)
+            neo4j_match_statement += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count,paradigm[0])
+            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1],count)
             count += 1
 
         for tech in technologies:
             if tech[0] not in usnode[0][4]:
                 usnode[0][4].append(tech[0])
-                create_node = "create (a:Technology {{name: "'"{}"'"}})".format(tech[0])
-                execute_commands(create_node)
+                neo4j_create_nodes += ",(a{}:Technology {{name: "'"{}"'"}})".format(count,tech[0])
+                count += 1
 
-            apforms_sentence += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count,tech[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
+            neo4j_match_statement += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count,tech[0])
+            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
             count += 1
 
-        
-        # Checks if the create section is just "create ", because that would mean
-        # that there were no sections to add. If it isn't just "create ", then
-        # it removes the first comma so that the create clause doesn't cause an error.
-        if len(create_section) != 7:
-            create_section = create_section[:7] + create_section[8:]
-            final_statement = apforms_sentence + create_section
-            execute_commands(final_statement)
-
         #-------------------------------------------------------------------X
-
+            
         #-----------------------CAPECs Relationship Code---------------------
-
-        count = 1
-        capec_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-        create_section = "create "
-        create_capecs = "create "
             
         for capec in capec_list:
+                
+            if binsearch(usnode[3],int(capec[0][6:])) is False:
+                bisect.insort(usnode[3],int(capec[0][6:]))
+                neo4j_create_nodes += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(capec[0][6:],capec[1],count)
+                count += 1
 
-            if binsearch(usnode[3],capec[0][6:]) is False:
-                bisect.insort(usnode[3],capec[0])
-                create_capecs += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(capec[0][6:],capec[1],count+50)
-
-            capec_sentence += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,capec[0][6:])
-    
-            create_section += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
+            neo4j_match_statement += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,int(capec[0][6:]))
+            neo4j_create_rels += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
             count += 1
 
-        if len(create_capecs) != 7:
-            execute_commands(create_capecs[:7] + create_capecs[8:])
-
-        if len(create_section) != 7:
-            create_section = create_section[:7] + create_section[8:]
-            final_statement = capec_sentence + create_section
-            execute_commands(final_statement)
-
         #-------------------------------------------------------------------X
-        
-        #----------------Detection Methods Relationship Code-----------------
 
-        count = 1
-        detmet_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-        create_section = "create "
+        #----------------Detection Methods Relationship Code-----------------
             
         for detmet in detection_methods:
 
             if detmet[0] not in usnode[1]:
                 usnode[1].append(detmet[0])
-                create_node = "create (a:Detection_Method {{name: "'"{}"'"}})".format(detmet[0])
-                execute_commands(create_node)
+                neo4j_create_nodes += ",(a{}:Detection_Method {{name: "'"{}"'"}})".format(count,detmet[0])
+                count += 1
 
-            detmet_sentence += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count,detmet[0])
+            neo4j_match_statement += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count,detmet[0])
 
             # If this block of code causes an error, it means the detection method did not have
             # a listed effectiveness and will cause an error since it will not be a parsable string.
@@ -518,27 +498,37 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             try:
                 if detmet[1][0] != " ":
                     effectiveness = " ".join(detmet[1].split(" ")[1:])     
-                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
+                    neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
                 else:
-                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                    neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
                 count += 1
             except:
-                create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
                 count += 1
 
-        if len(create_section) != 7:
-            create_section = create_section[:7] + create_section[8:]
-            final_statement = detmet_sentence + create_section
+        #-------------------------------------------------------------------X
+
+                
+
+        #--------------------Importing all Data into Neo4j------------------*
+
+        if len(neo4j_create_nodes) != 7 and len(neo4j_create_rels) != 7:
+            neo4j_create_nodes = neo4j_create_nodes[:7] + neo4j_create_nodes[8:]
+            neo4j_create_rels = neo4j_create_rels[:7] + neo4j_create_rels[8:]
+            
+            execute_commands(neo4j_create_nodes)
+            final_statement = neo4j_match_statement + neo4j_create_rels
             execute_commands(final_statement)
 
         #-------------------------------------------------------------------X
 
+            
+        
         #------------------CWE - to - CWE Relationship Code------------------
 
 
         if cwe_cwe_bool is True:
         
-            count = 1
             cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
             create_section = "create "
 
@@ -576,15 +566,10 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             
 
         #-------------------------------------------------------------------X
-        
-        
+         
 
     return usnode
 
-
-
-        
-        
 
 
 
@@ -684,7 +669,7 @@ def addNeoInfo(node_list):
 
 def main():
 
-    used_nodes_list = [[[],[],[],[],[]],[],[], []]
+    used_nodes_list = [[[],[],[],[],[]],[],[], []]    
 ##    used_nodes_list[0] is the 5 applicable platforms
 ##    [0][0] - languages , [0][1] os , [0][2] architectures
 ##    [0][3] - paradigms , [0][4] technologies
