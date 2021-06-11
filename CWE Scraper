@@ -4,7 +4,7 @@ import bisect
 from neo4j import GraphDatabase
 
 #-----------------------------------------
-# Last Updated : June 10                 |
+# Last Updated : June 11                 |
 # Author: Bryce                          |
 #-----------------------------------------
 
@@ -209,6 +209,46 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     #---------End of Applicable Platform Finders---------X
 
     #---------------------------------------------------->
+    # Finding the Common Consequences
+    #---------------------------------------------------->
+
+    common_consequences = []
+
+    try:
+        container = ps.find("div",{"id":"Common_Consequences"})
+
+        first_div = container.div
+        target_div = first_div.findNextSibling()
+
+        tbody_div = target_div.div.div.table
+
+        temp = tbody_div.tr.findNextSibling()   # First common consequence row
+
+        while temp != None:
+            impacts = temp.i.contents[0].split("; ")
+            impacts[0] = impacts[0].strip()
+            scope = temp.td.contents[0::2]
+            com_cons = ""
+            for word in scope:
+                com_cons += word + " "
+
+            com_cons = com_cons[0:-1]
+                
+            common_consequences.append([com_cons,impacts])
+            temp = temp.findNextSibling()
+        
+
+    except:
+        None
+        
+
+
+
+
+
+    #----------------------------------------------------X
+
+    #---------------------------------------------------->
     # Finding the Observed Examples of CVEs
     #---------------------------------------------------->
 
@@ -388,6 +428,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 ##exploit_likelihood
 ##paired_relationships
 ##capec_list
+##common_consequences
 
 
     #---------------------------------------------------------------------->
@@ -472,12 +513,47 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                 
             if binsearch(usnode[3],int(capec[0][6:])) is False:
                 bisect.insort(usnode[3],int(capec[0][6:]))
-                neo4j_create_nodes += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(capec[0][6:],capec[1],count)
+                neo4j_create_nodes += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(int(capec[0][6:]),capec[1],count)
                 count += 1
 
             neo4j_match_statement += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,int(capec[0][6:]))
             neo4j_create_rels += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
             count += 1
+
+        #-------------------------------------------------------------------X
+
+        #----------------Common Consequences Relationship Code---------------
+
+
+        for consequence in common_consequences: 
+
+            if consequence[0] not in ([item[0] for item in usnode[4][3:]]):
+                usnode[4].append([consequence[0],[]])
+                neo4j_create_nodes += ",(a{}:Consequence {{name: "'"{}"'"}})".format(count,consequence[0])
+                usnode[4][0][consequence[0]] = usnode[4][1]
+                usnode[4][1] += 1
+                count += 1
+
+            cons_match_count = count
+            neo4j_match_statement += "match (a{0}:Consequence) where a{0}.name = "'"{1}"'" ".format(count,consequence[0])
+            neo4j_create_rels += ", (a)-[:VIOLATES]->(a{})".format(count)
+            count += 1
+            
+
+            for impact in consequence[1]:
+                if impact not in usnode[4][2]:
+                    usnode[4][2].append(impact)
+                    neo4j_create_nodes += ",(a{}:Impact {{name: "'"{}"'"}})".format(count,impact)
+                    count += 1
+
+                if impact not in usnode[4][usnode[4][0][consequence[0]]][1]:
+                    usnode[4][usnode[4][0][consequence[0]]][1].append(impact)
+                    
+                    neo4j_match_statement += "match (a{0}:Impact) where a{0}.name = "'"{1}"'" ".format(count,impact)
+                    neo4j_create_rels += ", (a{})-[:CAUSES]->(a{})".format(cons_match_count,count)
+                    count += 1
+                
+        
 
         #-------------------------------------------------------------------X
 
@@ -510,7 +586,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
                 
 
-        #--------------------Importing all Data into Neo4j------------------*
+        #--------------------Importing all Data (except CWEs) into Neo4j------------------*
 
         if len(neo4j_create_nodes) != 7 and len(neo4j_create_rels) != 7:
             neo4j_create_nodes = neo4j_create_nodes[:7] + neo4j_create_nodes[8:]
@@ -520,7 +596,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             final_statement = neo4j_match_statement + neo4j_create_rels
             execute_commands(final_statement)
 
-        #-------------------------------------------------------------------X
+        #---------------------------------------------------------------------------------X
 
             
         
@@ -669,14 +745,20 @@ def addNeoInfo(node_list):
 
 def main():
 
-    used_nodes_list = [[[],[],[],[],[]],[],[], []]    
-##    used_nodes_list[0] is the 5 applicable platforms
-##    [0][0] - languages , [0][1] os , [0][2] architectures
-##    [0][3] - paradigms , [0][4] technologies
+    consequence_dict = {}
+    consequence_index = 3
+    
+    used_nodes_list = [[[],[],[],[],[]],[],[],[],[consequence_dict,consequence_index,[]]]
+##    Indices:                 0         1  2  3  4
+##    ------------------------------------------------------    
+##    used_nodes_list[0] is the 5 Applicable Platforms
+##    [0][0] - Languages , [0][1] OS , [0][2] Architectures
+##    [0][3] - Paradigms , [0][4] Technologies
 ##    ------------------------------------------------------
-##    used_nodes_list[1] is the detection methods
+##    used_nodes_list[1] is the Detection Methods
 ##    used_nodes_list[2] is the CWE IDs
 ##    used_nodes_list[3] is the CAPECs
+##    used_nodes_list[4] is the Common Consequences
     
     print("The for-loop or while-loop main?")
     print("Enter 1 for for-loop, 2 for while-loop, or 3 for Neo4j import.")
