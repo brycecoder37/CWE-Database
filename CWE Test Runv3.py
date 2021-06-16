@@ -4,7 +4,6 @@ from selenium.webdriver.chrome.options import Options
 from urllib.request import urlopen as uReq
 from bs4 import BeautifulSoup as soup
 from neo4j import GraphDatabase
-import bisect
 
 
 # -----------------------------------------
@@ -22,31 +21,9 @@ import bisect
 # -----------------------------------------------------------------*
 
 def transaction(query):
-    data_base_connection = GraphDatabase.driver(uri="bolt://localhost:11003", auth=("neo4j", "123"))
+    data_base_connection = GraphDatabase.driver(uri="bolt://localhost:7687", auth=("neo4j", "123"))
     session = data_base_connection.session()
-    session.run(query)
-
-
-# -----------------------------------------------------------------*
-# binary search method returns -1 if not found, optimized for strings
-# -----------------------------------------------------------------*
-
-def string_binary_search(arr, low, high, x):
-    if high >= low:
-
-        mid = low + (high - low) // 2
-
-        if arr[mid] == x:
-            return True
-
-        elif arr[mid] > x:
-            return string_binary_search(arr, low, mid - 1, x)
-
-        else:
-            return string_binary_search(arr, mid + 1, high, x)
-
-    else:
-        return False
+    return session.run(query).single()
 
 
 # -----------------------------------------------------------------*
@@ -74,41 +51,47 @@ def cvesearch(CVEInput, query, num):
     # print(view) debug
 
     try:
-        for a in soup.findAll('tr', attrs={'data-testid': view}):
-            newName = a.find('a').text
-            # print(newName) debug
-
-        if newName == CVEInput:
+        c = soup.findAll('tr', attrs={'data-testid': view})
+        # print(c) debug
+        if c:
             for a in soup.findAll('tr', attrs={'data-testid': view}):
-                descr = a.find('p').text.replace('\\', r'\\\\').replace('"', r'\"')
-                descriptions.append(descr)
-            for a in soup.findAll('td', attrs={'nowrap': 'nowrap'}):
-                sev = a.find('a')
-                if sev.text == "":
-                    sev = a.find('a').next_sibling
-                if sev.text == "":
-                    sev = "Not Applicable"
-                severity.append(sev.text)
-            # print(descriptions[0]) debug
-            # print(severity[0]) debug
+                newName = a.find('a').text
+                # print(newName) debug
 
-            CVEInput2 = CVEInput[0:3] + CVEInput[4:8] + CVEInput[9:]
-            # print(CVEInput2) debug
+            if newName == CVEInput:
+                for a in soup.findAll('tr', attrs={'data-testid': view}):
+                    descr = a.find('p').text.replace('\\', r'\\\\').replace('"', r'\"')
+                    descriptions.append(descr)
+                for a in soup.findAll('td', attrs={'nowrap': 'nowrap'}):
+                    sev = a.find('a')
+                    if sev.text == "":
+                        sev = a.find('a').next_sibling
+                    if sev.text == "":
+                        sev = "Not Applicable"
+                    severity.append(sev.text)
+                # print(descriptions[0]) debug
+                # print(severity[0]) debug
 
-            if query != "":
-                query += ", "
-            query += "(" + CVEInput2 + ":CVE{name:\"" + CVEInput + "\", description:\"" + descriptions[0] \
-                     + "\", severity:\"" + severity[0] + "\"})"
+                CVEInput2 = CVEInput[0:3] + CVEInput[4:8] + CVEInput[9:]
+                # print(CVEInput2) debug
 
-            # print(query) debug
+                if query != "":
+                    query += ", "
+                query += "(" + CVEInput2 + ":CVE{name:\"" + CVEInput + "\", description:\"" + descriptions[0] \
+                         + "\", severity:\"" + severity[0] + "\"})"
 
-            return query
+                # print(query) debug
 
+                return query
+
+            else:
+                num += 1
+                return cvesearch(CVEInput, query, num)
         else:
-            num += 1
-            return cvesearch(CVEInput, query, num)
+            print("No CVE found by the name of " + CVEInput)
+            return query
     except:
-        print("No CVE found by the name of " + CVEInput)
+        None
 
 
 # -----------------------------------------------------------------*
@@ -118,7 +101,6 @@ def cvesearch(CVEInput, query, num):
 # -----------------------------------------------------------------+
 # CWE_id_number: ID of CWE that the method will scrape
 # --------------
-# usnode: the list of already-created nodes. This list will ensure
 # that when the program is made for several CWEs, that it won't
 # create duplicate nodes.
 # --------------
@@ -134,13 +116,9 @@ def cvesearch(CVEInput, query, num):
 # between the original CWE and the "branch" CWE
 # ------------------------------------------------------------------+
 
-def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
-    if not num_bin_search(usnode[2], CWE_id_number):
-        bisect.insort(usnode[2], CWE_id_number)
-
+def scrapeCWE(CWE_id_number, Neo4jBoolean, cwe_cwe_bool, original_info):
     cwe_name = ""
     query = ""
-    entire_cve_list = usnode[3]
     my_url = ""
     ps = ""
 
@@ -216,7 +194,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                 frequency = temp.p.span.contents[0].strip()
                 languages.append([lang, frequency])
                 try:
-                    if (temp.findNextSibling().contents[0] == "Technologies"):
+                    if temp.findNextSibling().contents[0] == "Technologies":
                         temp = temp.findNextSibling()
                         break
                 except:
@@ -292,10 +270,43 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     # ---------End of Applicable Platform Finders---------X
 
     # ---------------------------------------------------->
-    # Finding the Observed Examples of CVEs
+    # Finding the Common Consequences
     # ---------------------------------------------------->
 
-    cve_list = []
+    common_consequences = []
+
+    try:
+        container = ps.find("div", {"id": "Common_Consequences"})
+
+        first_div = container.div
+        target_div = first_div.findNextSibling()
+
+        tbody_div = target_div.div.div.table
+
+        temp = tbody_div.tr.findNextSibling()  # First common consequence row
+
+        while temp != None:
+            impacts = temp.i.contents[0].split("; ")
+            impacts[0] = impacts[0].strip()
+            scope = temp.td.contents[0::2]
+            com_cons = ""
+            for word in scope:
+                com_cons += word + " "
+
+            com_cons = com_cons[0:-1]
+
+            common_consequences.append([com_cons, impacts])
+            temp = temp.findNextSibling()
+
+
+    except:
+        None
+
+    # ----------------------------------------------------X
+
+    # ---------------------------------------------------->
+    # Finding the Observed Examples of CVEs
+    # ---------------------------------------------------->
 
     try:
 
@@ -313,28 +324,59 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
             cve_item = cve_item.findNextSibling()
             print("\"" + cve_item.a.contents[0] + "\"")
 
-            if not string_binary_search(entire_cve_list, 0, len(entire_cve_list) - 1, cve_item.a.contents[0]):
-                bisect.insort(entire_cve_list, cve_item.a.contents[0])
-                # print(entire_cve_list) debug
-                bisect.insort(cve_list, cve_item.a.contents[0])
-                query = cvesearch(cve_item.a.contents[0], query, 0)
-                query += ", (" + "CWE" + str(CWE_id_number) + ")-[:VULNERABLETO]->(" + cve_item.a.contents[0][0:3] + \
-                         cve_item.a.contents[0][4:8] + cve_item.a.contents[0][9:] + ")"
+            node_exists = bool(transaction("MATCH(n:CVE {name: '" + cve_item.a.contents[0] + "'}) RETURN n"))
+            # print(exists) debug
+            if not node_exists:
+                search = cvesearch(cve_item.a.contents[0], query, 0)
+                if search != query:
+                    query = search
+                    query += ", (CWE" + str(CWE_id_number) + ")-[:VULNERABLETO]->(" + \
+                             cve_item.a.contents[0][0:3] + cve_item.a.contents[0][4:8] + cve_item.a.contents[0][9:] \
+                             + ")"
             else:
-                print("Duplicate CVE node")
+                # print("Duplicate CVE node") debug
+                relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                      "})-[:VULNERABLETO]->(b:CVE {name: '" + cve_item.a.contents[0] +
+                                                      "'}) RETURN a"))
+                if not relationship_exist:
+                    query += "\nWITH CWE" + str(CWE_id_number) + " \nMATCH(a:CVE {name:\"" + cve_item.a.contents[0] + \
+                             "\"})\nCREATE (CWE" + str(CWE_id_number) + ")-[:VULNERABLETO]->(a) "
 
-                query += "\nWITH CWE" + str(CWE_id_number) + " \nMATCH(a:CVE {name:\"" + cve_item.a.contents[0] + \
-                         "\"})\nCREATE (CWE" + str(CWE_id_number) + ")-[:VULNERABLETO]->(a) "
-        print("CVE List: ", cve_list)
-        print("There are", len(cve_list), "observed distinct CVEs.")
-        print("")
-
-        usnode[3] = entire_cve_list
 
     except:
         None
 
-    # ---------------End of Observed CVEs-----------------X
+        # ---------------End of Observed CVEs-----------------X
+
+        # ---------------------------------------------------->
+        # Finding the Related Attack Patterns (CAPECs)
+        # ---------------------------------------------------->
+
+    # capec_list = []
+
+    # try:
+
+    #    container = ps.find("div", {"id": "Related_Attack_Patterns"})
+
+    #    first_div = container.div
+
+    #    target_div = first_div.findNextSibling()
+
+    #    capec_table = target_div.div.div.table
+
+    #    capec = capec_table.tr
+
+    #    for i in range(int(len(capec_table) - 1 / 2)):
+    #        capec = capec.findNextSibling()
+    #        capec_name_div = capec.td
+    #        capec_name = capec_name_div.a.contents[0]
+    #        capec_desc = capec_name_div.findNextSibling().contents[0]
+    #        capec_list.append([capec_name, capec_desc])
+
+    # except:
+    #   None
+
+    # ---------------End of Finding CAPECs-----------------X
 
     # ---------------------------------------------------->
     # Finding the Detection Methods
@@ -352,7 +394,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
         det_item = det_methods_table.tr
 
-        while (det_item != None):
+        while det_item is not None:
             method = det_item.td.p.contents[0].strip()
             try:
                 effectiveness = (det_item.findAll("p"))[-1].contents[0]
@@ -406,7 +448,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
             rel_cwe = target_div.tr
 
-            while (rel_cwe != None):
+            while rel_cwe is not None:
                 relationships.append(rel_cwe.td.contents[0])
                 id_numbers.append(int(rel_cwe.td.findNextSibling().findNextSibling().contents[0]))
                 names.append(rel_cwe.td.findNextSibling().findNextSibling().findNextSibling().a.contents[0])
@@ -418,13 +460,13 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
             table_div = table_div.findNextSibling()
 
-            while (table_div != None):
+            while table_div is not None:
                 even_further_div = table_div.div.div.div.div.div.table  # table tag
                 target_div = even_further_div.tbody
 
                 rel_cwe = target_div.tr
 
-                while (rel_cwe != None):
+                while rel_cwe is not None:
                     id_number = int(rel_cwe.td.findNextSibling().findNextSibling().contents[0])
                     name = rel_cwe.td.findNextSibling().findNextSibling().findNextSibling().a.contents[0]
                     if id_number not in id_numbers:
@@ -443,18 +485,18 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
     # -----------------End of Relationships---------------X
 
-    ##  Important Variables in scrapeCWE
-    ##CWE_id_number
-    ##cwe_name
-    ##languages        #
-    ##operating_systems# These 5 variables can merge
-    ##architectures    # into 'applicable_platforms'
-    ##paradigms        # variable
-    ##technologies     #
-    ##cve_list
-    ##detection_methods
-    ##exploit_likelihood
-    ##paired_relationships
+    # Important Variables in scrapeCWE
+    # CWE_id_number
+    # cwe_name
+    # languages        #
+    # operating_systems# These 5 variables can merge
+    # architectures    # into 'applicable_platforms'
+    # paradigms        # variable
+    # technologies     #
+    # cve_list
+    # detection_methods
+    # exploit_likelihood
+    # paired_relationships
 
     # ---------------------------------------------------------------------->
     #
@@ -462,121 +504,230 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     #
     # ---------------------------------------------------------------------->
 
-    if Neo4jBoolean == True:
+    if Neo4jBoolean:
+
+        neo4j_create_statement = ""
 
         variable_name = "CWE" + str(CWE_id_number)
 
-        neo4j_create_statement = "create({0}:CWE {{name:"'"{1}"'",id_number:{2}".format(variable_name, cwe_name,
-                                                                                        CWE_id_number)
-        neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
+        CWE_node_exists = bool(transaction("MATCH(n:CWE {id_number: " + str(CWE_id_number) + "}) RETURN n"))
+        # print(CWE_node_exists) debug
+        if not CWE_node_exists:
+            neo4j_create_statement = "CREATE({0}:CWE {{name:"'"{1}"'",id_number:{2}".format(variable_name, cwe_name,
+                                                                                            CWE_id_number)
+            neo4j_create_statement += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
 
-        if neo4j_create_statement != "create" and query[0:5] != "\nWITH" and query != "":
-            # print(query[0:5]) debug
-            neo4j_create_statement += ", " + query
+        if neo4j_create_statement != "CREATE" and query[0:5] != "\nWITH" and query != "":
+            if neo4j_create_statement == "":
+                neo4j_create_statement = "CREATE " + query
+            else:
+                # print(query[0:5]) debug
+                neo4j_create_statement += ", " + query
         else:
             # print("MATCH STATEMENT") debug
             neo4j_create_statement += "\n" + query
 
-        print("Neo4j create CWE statement: ", neo4j_create_statement)
-        transaction(neo4j_create_statement)
+        # print("Neo4j create CWE statement: " + neo4j_create_statement) debug
+        if neo4j_create_statement != "\n":
+            transaction(neo4j_create_statement)
 
         # --------------Applicable Platform Relationship Code-----------------
 
         count = 1
-        apforms_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-        create_section = "create "
+        apforms_sentence = "MATCH (a:CWE) WHERE a.id_number = {} ".format(CWE_id_number)
+        create_section = "CREATE "
 
         for language in languages:
-            if language[0] not in usnode[0][0]:
-                usnode[0][0].append(language[0])
-                create_node = "create (a:Language {{name: "'"{}"'"}})".format(language[0])
+            language_node_exists = bool(transaction("MATCH(n:Language {name: '" + language[0] + "'}) RETURN n"))
+            if not language_node_exists:
+                create_node = "CREATE (a:Language {{name: "'"{}"'"}})".format(language[0])
                 transaction(create_node)
 
-            apforms_sentence += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count, language[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1], count)
+            language_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                           "})-[:FOUNDIN]->(b:Language {name: '" + language[0] +
+                                                           "'}) RETURN a"))
+            if not language_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:Language) WHERE a{0}.name = "'"{1}"'" ".format(count, language[0])
+                create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1], count)
             count += 1
 
         for os in operating_systems:
-            if os[0] not in usnode[0][1]:
-                usnode[0][1].append(os[0])
-                create_node = "create (a:OS {{name: "'"{}"'"}})".format(os[0])
+            os_node_exists = bool(transaction("MATCH(n:OS {name: '" + os[0] + "'}) RETURN n"))
+            if not os_node_exists:
+                create_node = "CREATE (a:OS {{name: "'"{}"'"}})".format(os[0])
                 transaction(create_node)
 
-            apforms_sentence += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count, os[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1], count)
+            os_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                     "})-[:FOUNDIN]->(b:OS {name: '" + os[0] +
+                                                     "'}) RETURN a"))
+            if not os_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:OS) WHERE a{0}.name = "'"{1}"'" ".format(count, os[0])
+                create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1], count)
             count += 1
 
         for arch in architectures:
-            if arch[0] not in usnode[0][2]:
-                usnode[0][2].append(arch[0])
-                create_node = "create (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
+            arch_node_exists = bool(transaction("MATCH(n:Architecture {name: '" + arch[0] + "'}) RETURN n"))
+            if not arch_node_exists:
+                create_node = "CREATE (a:Architecture {{name: "'"{}"'"}})".format(arch[0])
                 transaction(create_node)
 
-            apforms_sentence += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count, arch[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1], count)
+            arch_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                       "})-[:FOUNDIN]->(b:Architecture {name: '" + arch[0] +
+                                                       "'}) RETURN a"))
+            if not arch_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count, arch[0])
+                create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1], count)
             count += 1
 
         for paradigm in paradigms:
-            if paradigm[0] not in usnode[0][3]:
-                usnode[0][3].append(paradigm[0])
-                create_node = "create (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
+            paradigm_node_exists = bool(transaction("MATCH(n:Paradigm {name: '" + paradigm[0] + "'}) RETURN n"))
+            if not paradigm_node_exists:
+                create_node = "CREATE (a:Paradigm {{name: "'"{}"'"}})".format(paradigm[0])
                 transaction(create_node)
 
-            apforms_sentence += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count, paradigm[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1], count)
+            paradigm_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                           "})-[:FOUNDIN]->(b:Paradigm {name: '" + paradigm[0] +
+                                                           "'}) RETURN a"))
+            if not paradigm_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count, paradigm[0])
+                create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1], count)
             count += 1
 
         for tech in technologies:
-            if tech[0] not in usnode[0][4]:
-                usnode[0][4].append(tech[0])
-                create_node = "create (a:Technology {{name: "'"{}"'"}})".format(tech[0])
+            tech_node_exists = bool(transaction("MATCH(n:Technology {name: '" + tech[0] + "'}) RETURN n"))
+            if not tech_node_exists:
+                create_node = "CREATE (a:Technology {{name: "'"{}"'"}})".format(tech[0])
                 transaction(create_node)
 
-            apforms_sentence += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count, tech[0])
-            create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1], count)
+            tech_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                       "})-[:FOUNDIN]->(b:Technology {name: '" + tech[0] +
+                                                       "'}) RETURN a"))
+            if not tech_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:Technology) WHERE a{0}.name = "'"{1}"'" ".format(count, tech[0])
+                create_section += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1], count)
             count += 1
 
-        # Checks if the create section is just "create ", because that would mean
-        # that there were no sections to add. If it isn't just "create ", then
-        # it removes the first comma so that the create clause doesn't cause an error.
-        if len(create_section) != 7:
+        # -------------------------------------------------------------------X
+
+        if create_section != "CREATE ":
             create_section = create_section[:7] + create_section[8:]
             final_statement = apforms_sentence + create_section
+            # print(final_statement) debug
             transaction(final_statement)
 
+        # -----------------------CAPECs Relationship Code---------------------
+
+        # create_section = "CREATE "
+        # final_statement = ""
+
+        # for capec in capec_list:
+        #    capec_node_exists = bool(transaction("MATCH(n:CAPEC {id_number: '" + capec[0][6:] + "'}) RETURN n"))
+        #    if not capec_node_exists:
+        #        create_node = "CREATE (a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(
+        #            str(capec[0][6:]), capec[1], count)
+        #        print(capec[1])
+        #        transaction(create_node)
+
+        #    capec_relationship_exist = bool(transaction("MATCH(a:CAPEC {id_number: " + str(capec[0][6:]) +
+        #                                                "})<-[:ATTACKPATTERNFOR]-(b:CWE {name: '" +
+        #                                                str(CWE_id_number) + "'}) RETURN a"))
+        #    print(capec_relationship_exist)
+        #    if not capec_relationship_exist:
+        #        apforms_sentence += "MATCH (a{0}:CAPEC) WHERE a{0}.id_number = {1} ".format(count, str(capec[0][6:]))
+        #        create_section += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
+        #    count += 1
+
         # -------------------------------------------------------------------X
+
+        # ----------------Common Consequences Relationship Code---------------
+
+        create_section = "CREATE "
+        final_statement = ""
+
+        for consequence in common_consequences:
+
+            consequence_node_exists = bool(transaction("MATCH(n:Consequence {name: '" + consequence[0] + "'})"
+                                                                                                         " RETURN n"))
+            if not consequence_node_exists:
+                create_node = "CREATE (a:Consequence {{name: "'"{}"'"}})".format(consequence[0])
+                transaction(create_node)
+
+            consequence_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                              "})-[:VIOLATES]->(b:Consequence {name: '" +
+                                                              consequence[0] + "'}) RETURN a"))
+
+            if not consequence_relationship_exist:
+                apforms_sentence += "MATCH (a{0}:Consequence) WHERE a{0}.name = "'"{1}"'" ".format(count,
+                                                                                                   consequence[0])
+                create_section += ",(a)-[:VIOLATES]->(a{})".format(count)
+
+            count += 1
+            cons_match_count = count
+
+            for impact in consequence[1]:
+                impact_node_exists = bool(transaction("MATCH(n:Impact {name: '" + impact + "'}) RETURN n"))
+                if not impact_node_exists:
+                    create_node = "CREATE (b:Impact {{name: "'"{}"'"}})".format(impact)
+                    transaction(create_node)
+
+                impact_relationship_exist = bool(transaction("MATCH (b:Consequence {name: '" + consequence[0] +
+                                                             "'})-[:CAUSES]->(c:Impact {name: '" + impact +
+                                                             "'}) RETURN b"))
+
+                if not impact_relationship_exist:
+                    apforms_sentence += "MATCH (b{0}:Consequence) WHERE b{0}.name = "'"{1}"'" ".format(cons_match_count,
+                                                                                                       consequence[0])
+                    apforms_sentence += "MATCH (c{0}{1}:Impact) WHERE c{0}{1}.name = "'"{2}"'" ".format(
+                        cons_match_count, count, impact)
+                    create_section += ", (b{0})-[:CAUSES]->(c{0}{1})".format(cons_match_count, count)
+
+                count += 1
+            count = cons_match_count
+
+        # -------------------------------------------------------------------X
+
+        if create_section != "CREATE ":
+            create_section = create_section[:7] + create_section[8:]
+            final_statement = apforms_sentence + create_section
+            # print(final_statement) debug
+            transaction(final_statement)
 
         # ----------------Detection Methods Relationship Code-----------------
 
         count = 1
-        detmet_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-        create_section = "create "
+        detmet_sentence = "MATCH (a:CWE) WHERE a.id_number = {} ".format(CWE_id_number)
+        create_section = "CREATE "
 
         for detmet in detection_methods:
 
-            if detmet[0] not in usnode[1]:
-                usnode[1].append(detmet[0])
-                create_node = "create (a:Detection_Method {{name: "'"{}"'"}})".format(detmet[0])
+            detmet_node_exists = bool(transaction("MATCH(n:Detection_Method {name: '" + detmet[0] + "'}) RETURN n"))
+            if not detmet_node_exists:
+                create_node = "CREATE (a:Detection_Method {{name: "'"{}"'"}})".format(detmet[0])
                 transaction(create_node)
 
-            detmet_sentence += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count, detmet[0])
+            detmet_sentence += "MATCH (a{0}:Detection_Method) WHERE a{0}.name = "'"{1}"'" ".format(count, detmet[0])
 
             # If this block of code causes an error, it means the detection method did not have
             # a listed effectiveness and will cause an error since it will not be a parsable string.
             # So, the effectiveness will just be listed as N/A for that detection method for the CWE.
-            try:
-                if detmet[1][0] != " ":
-                    effectiveness = " ".join(detmet[1].split(" ")[1:])
-                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,
-                                                                                                    count)
-                else:
-                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
-                count += 1
-            except:
-                create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
-                count += 1
+            detmet_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(CWE_id_number) +
+                                                         "})-[:DETECTEDBY]->(b:Detection_Method {name: '" + detmet[0] +
+                                                         "'}) RETURN a"))
 
-        if len(create_section) != 7:
+            if not detmet_relationship_exist:
+                try:
+                    if detmet[1][0] != " ":
+                        effectiveness = " ".join(detmet[1].split(" ")[1:])
+                        create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,
+                                                                                                        count)
+                    else:
+                        create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                    count += 1
+                except:
+                    create_section += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                    count += 1
+
+        if create_section != "CREATE ":
             create_section = create_section[:7] + create_section[8:]
             final_statement = detmet_sentence + create_section
             transaction(final_statement)
@@ -588,21 +739,11 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         if cwe_cwe_bool is True:
 
             count = 1
-            cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-            create_section = "create "
+            cwe_cwe_sentence = "MATCH (a:CWE) WHERE a.id_number = {} ".format(CWE_id_number)
+            create_section = "CREATE "
 
             for relation in paired_relationships:
-
-                # For relationship CWEs that haven't been made yet.
-                if not num_bin_search(usnode[2], relation[1]):
-                    usnode = scrapeCWE(relation[1], usnode, True, False, [CWE_id_number, relation[0], None])
-
-                # For relationship CWEs that HAVE been made already.
-                else:
-
-                    cwe_cwe_sentence += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(count, relation[1])
-                    create_section += ",(a)-[:{0}]->(a{1})".format(relation[0].upper(), count)
-                    count += 1
+                scrapeCWE(relation[1], True, False, [CWE_id_number, relation[0], None])
 
             # If there are no relationships for a CWE, the length of create_section
             # ("create ") will be 7 and no clauses will be inputted into Neo4j.
@@ -613,49 +754,27 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                 transaction(final_statement)
 
         else:
+            cwe_relationship_exist = bool(transaction("MATCH(a:CWE {id_number: " + str(original_info[0]) +
+                                                      "})-[:" + original_info[1].upper() + "]->(b:CWE {id_number: " +
+                                                      str(CWE_id_number) + "}) RETURN a"))
 
-            cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(original_info[0])
-            cwe_cwe_sentence += "match (b:CWE) where b.id_number = {} ".format(CWE_id_number)
-            final_statement = cwe_cwe_sentence + "create (a)-[:{}]->(b)".format(original_info[1].upper())
-            transaction(final_statement)
+            if not cwe_relationship_exist:
+                cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(original_info[0])
+                cwe_cwe_sentence += "match (b:CWE) where b.id_number = {} ".format(CWE_id_number)
+                final_statement = cwe_cwe_sentence + "create (a)-[:{}]->(b)".format(original_info[1].upper())
+                transaction(final_statement)
 
         # -------------------------------------------------------------------X
-
-        return usnode
 
 
 # --------------------------------------End of Web Scraper Code---------------------------------------------------X
 
 
-# -------------------Binary Search for Numbers----------------------->
-
-def num_bin_search(list_to_check, target_number):
-    left = 0
-    right = len(list_to_check) - 1
-    moves = 0
-    while (left <= right):
-        mid = int((left + right) / 2)
-        moves += 1
-        if (list_to_check[mid] == target_number):
-            return True
-        elif (list_to_check[mid] < target_number):
-            left = mid + 1
-        else:
-            right = mid - 1
-
-    return False
-
-
-# -------------------------------------------------------X
-
-
 # -------------------------Main Functions-------------------------->
 
-def forMain(node_list):
+def forMain():
     cwe_to_add = []
     answer = None
-
-    usnode = node_list
 
     while True:
         answer = int(input("Enter CWE ID to put into database. Enter -1 to stop adding CWEs. "))
@@ -664,35 +783,29 @@ def forMain(node_list):
         cwe_to_add.append(answer)
     for cwe in cwe_to_add:
         print("----------------------------------------------")
-        usnode = scrapeCWE(cwe, usnode, True, True, None)
+        scrapeCWE(cwe, True, True, None)
 
 
 # ----------------------------------------------------
 
-def whileMain(node_list):
+def whileMain():
     id_num = None
-
-    usnode = node_list
 
     while id_num != -1:
         print("----------------------------------------------")
         id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
-        if (id_num == -1):
+        if id_num == -1:
             break
-        usnode = scrapeCWE(id_num, usnode, True, True, None)
+        scrapeCWE(id_num, True, True, None)
 
 
 # ----------------------------------------------------
 
-def addNeoInfo(node_list):
+def addNeoInfo():
     num_of_cwe = int(input("How many CWEs would you like to add? "))
-    check = input("Are you sure you want to import data to Neo4j? This requires an open Neo4j database.")
-    last_check = input("Are you sure you wish to import data? Cancel program if not.")
-
-    usnode = node_list
 
     for i in range(1, num_of_cwe + 1):
-        usnode = scrapeCWE(i, usnode, True, True, None)
+        scrapeCWE(i, True, True, None)
 
 
 # --------------------------------------------------------X
@@ -700,24 +813,16 @@ def addNeoInfo(node_list):
 # ------------------------------Main-------------------------------#
 
 def main():
-    used_nodes_list = [[[], [], [], [], []], [], [], []]
-    ##    used_nodes_list[0] is the 5 applicable platforms
-    ##    [0][0] - languages , [0][1] os , [0][2] architectures
-    ##    [0][3] - paradigms , [0][4] technologies
-    ##    ------------------------------------------------------
-    ##    used_nodes_list[1] is the detection methods
-    ##    used_nodes_list[2] is the CWE IDs
-    ##    used_nodes_list[3] is the CVE IDs
 
     print("The for-loop or while-loop main?")
     print("Enter 1 for for-loop, 2 for while-loop, or 3 for Neo4j import.")
     answer = int(input("Enter number: "))
     if answer == 1:
-        forMain(used_nodes_list)
+        forMain()
     elif answer == 2:
-        whileMain(used_nodes_list)
+        whileMain()
     elif answer == 3:
-        addNeoInfo(used_nodes_list)
+        addNeoInfo()
 
 
 main()
