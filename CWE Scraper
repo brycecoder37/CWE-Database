@@ -2,9 +2,10 @@ from urllib.request import urlopen as uReq
 from bs4 import BeautifulSoup as soup
 import bisect
 from neo4j import GraphDatabase
+import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 11                 |
+# Last Updated : June 16                 |
 # Author: Bryce                          |
 #-----------------------------------------
 
@@ -522,6 +523,28 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
         #-------------------------------------------------------------------X
 
+        #-----------------------Tools Relationship Code----------------------
+            
+        if "Class: Language-Independent" in ([i[0] for i in languages]):
+            for tool in ctools.all_tools:
+                for product in tool[1:]:
+                    if binsearch(product[1:],CWE_id_number):
+                        neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
+                        neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
+                        neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
+                        count += 1
+        else:
+            for tool in ctools.all_tools:
+                if tool[0] in ([i[0] for i in languages]):     # Change something in the if statement******
+                    for product in tool[1:]:
+                        if binsearch(product[1:],CWE_id_number):
+                            neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
+                            neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
+                            neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
+                            count += 1
+
+        #-------------------------------------------------------------------X
+
         #----------------Common Consequences Relationship Code---------------
 
 
@@ -747,9 +770,11 @@ def main():
 
     consequence_dict = {}
     consequence_index = 3
+
+    execute_commands(ctools.create_tools())
     
     used_nodes_list = [[[],[],[],[],[]],[],[],[],[consequence_dict,consequence_index,[]]]
-##    Indices:                 0         1  2  3  4
+##    Indices:                 0         1  2  3                    4
 ##    ------------------------------------------------------    
 ##    used_nodes_list[0] is the 5 Applicable Platforms
 ##    [0][0] - Languages , [0][1] OS , [0][2] Architectures
