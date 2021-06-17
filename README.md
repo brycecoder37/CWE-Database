@@ -11,7 +11,7 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
 - [x] Create web scrapers to automate the data extraction
 - [x] Populate a Neo4j database with CWE/CVE information
 - [ ] Connect Neo4j database to STIG
-- [ ] Future plans? 
+- [ ] Find ways STIG can utilize our data 
 
 **Technologies Used**
 - Neo4j
