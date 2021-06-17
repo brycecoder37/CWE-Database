@@ -9,7 +9,7 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
 
 **Goals**
 - [x] Create web scrapers to automate data extraction of CWEs/CVEs
-- [x] Populate a Neo4j database with CWE/CVE information
+- [x] Be able to populate a Neo4j database with CWE/CVE information
 - [ ] Connect Neo4j database to STIG
 - [ ] Find ways STIG can utilize our data 
 
