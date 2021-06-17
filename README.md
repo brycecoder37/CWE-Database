@@ -8,7 +8,7 @@ This repository contains Python code that can easily populate a Neo4j database w
 The next part of this project will be linking the Neo4j database to STIG, a tool developed by INL. Our goal to achieve this is to convert our Neo4j database into a JSON file which can be turned into a STIX bundle From there, we should be able to simply input the STIX bundle into STIG.
 
 **Goals**
-- [x] Create web scrapers to automate the data extraction
+- [x] Create web scrapers to automate data extraction of CWEs/CVEs
 - [x] Populate a Neo4j database with CWE/CVE information
 - [ ] Connect Neo4j database to STIG
 - [ ] Find ways STIG can utilize our data 
