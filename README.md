@@ -1,4 +1,5 @@
-# Populating CWE/CVE Database
+# MSU Cybersecurity REU Project
+## Populating CWE/CVE Database
 ### Authors: Bryce Leighton & Tristan Chavez
 
 **Description**
