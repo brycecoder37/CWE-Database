@@ -12,7 +12,7 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
 - [x] Create web scrapers to automate data extraction of CWEs/CVEs
 - [x] Be able to populate a Neo4j database with CWE/CVE information
 - [x] Convert Neo4j JSON export files into readable STIX JSON files
-- [ ] Connect Neo4j database to STIG
+- [x] Import Neo4j JSON files to database to STIG
 - [ ] Find ways STIG can utilize our data 
 
 **Technologies Used**
@@ -21,8 +21,8 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
   - *BeautifulSoup*
   - *Selenium*
 - STIG - Structured Threat Intelligence Graph
-  - *OrientDB*
   - *STIX*
+  - *OrientDB*
 
 **Resources**
 - [CWE Info](https://cwe.mitre.org/)
