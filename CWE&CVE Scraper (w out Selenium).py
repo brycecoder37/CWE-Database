@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 18                 |
+# Last Updated : June 21                 |
 #-----------------------------------------
 
 
@@ -31,6 +31,12 @@ import cwetools as ctools
 #------------------------------------------------------------------+
 
 def cvesearch(CVE_name,num):
+
+    # Sometimes the CVE_name has a comma at the end,
+    # which will break the program.
+
+    if CVE_name[-1] == ",":
+        CVE_name = CVE_name[0:-1]
     
     descriptions = []
     severity_rating = []
@@ -146,11 +152,15 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         print("")
 
     except:
-        
-        print("The url", my_url, "does not exist.")
-        print("")
-        exit()
 
+        # For when you want to loop through every CWE
+        
+        if CWE_id_number < 1350:
+            scrapeCWE(CWE_id_number+1,usnode,Neo4jBoolean,cwe_cwe_bool,original_info)
+        elif CWE_id_number == 1350:
+            scrapeCWE(2000,usnode,Neo4jBoolean,cwe_cwe_bool,original_info)
+        exit()
+        
     #---------------------------------------------------->
     # Finding the Applicable Platforms of the CWE
     #---------------------------------------------------->
@@ -469,7 +479,8 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                 paired_relationships.append([relationships[i],id_numbers[i],names[i]])
                           
         except Exception as e:
-            print(e,e.args)
+            None
+            #print(e,e.args) In case you need to see the exception
 
     #-----------------End of Relationships---------------X
 
@@ -607,7 +618,7 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
                         count += 1
         else:
             for tool in ctools.all_tools:
-                if tool[0] in ([i[0] for i in languages]):     # Change something in the if statement******
+                if tool[0] in ([i[0] for i in languages]):  
                     for product in tool[1:]:
                         if binsearch(product[1:],CWE_id_number):
                             neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
@@ -822,12 +833,10 @@ def whileMain(node_list):
 
 def addNeoInfo(node_list):
     
-    num_of_cwe = int(input("How many CWEs would you like to add? "))
-    check = input("Are you sure you want to import data to Neo4j? This requires an open Neo4j database.")
-    last_check = input("Are you sure you wish to import data? Cancel program if not.")
+    num_of_cwe = int(input("CWEs go until ID number 1350. How many CWEs would you like to add? "))
+    last_check = input("Are you sure? Exit if not.")
 
     usnode = node_list
-    
 
     for i in range(1, num_of_cwe + 1):
         usnode = scrapeCWE(i,usnode,True, True, None)
