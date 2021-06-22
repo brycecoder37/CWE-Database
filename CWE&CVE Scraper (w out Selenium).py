@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 21                 |
+# Last Updated : June 22                 |
 #-----------------------------------------
 
 
@@ -15,9 +15,6 @@ import cwetools as ctools
 #
 #------------------------------------------------------------------------->
 
-                                                        # Integrated cvesearch into CWE scraper but without Selenium because
-                                                        # I can't get it to work for me personally (Bryce).
-                                                        # Might have gotten parameters wrong but that's what I understood of it.
 
 #-----------------------------------------------------------------*
 # scrapeCVE will scrape a CVE web page given its URL.
@@ -25,12 +22,9 @@ import cwetools as ctools
 #                           Parameters
 #-----------------------------------------------------------------+
 # CVE_name: whole name of CVE being scraped (ex. CVE-2004-1932).
-# ---------
-# num: iterates through rows of search page if it can't find
-# the correct CVE in the first row of search results.
 #------------------------------------------------------------------+
 
-def cvesearch(CVE_name,num):
+def cvesearch(CVE_name):
 
     # Sometimes the CVE_name has a comma at the end,
     # which will break the program.
@@ -38,10 +32,11 @@ def cvesearch(CVE_name,num):
     if CVE_name[-1] == ",":
         CVE_name = CVE_name[0:-1]
     
-    descriptions = []
-    severity_rating = []
+    description = ""
+    severity = ""
+    target_row = ""
     
-    my_url = ("https://nvd.nist.gov/vuln/search/results?form_type=Basic&results_type=overview&query=" + CVE_name + "&search_type=all")
+    my_url = ("https://nvd.nist.gov/vuln/detail/" + CVE_name)
     
     uClient = uReq(my_url)
     page_html = uClient.read()
@@ -51,39 +46,39 @@ def cvesearch(CVE_name,num):
     view = "vuln-row-" + str(num)
     
     try:
-        c = ps.findAll('tr', attrs={'data-testid': view})
+        # Target is the main column with all of the CVE info
+        target = ps.body.div.findNextSibling().div.findNextSibling().div.findNextSibling().table.tr.td.div.div
+        description = target.find("p",{"data-testid":"vuln-description"}).text.replace('\\', r'\\\\').replace('"', r'\"')
+
+        grade = None
+
+        # Each CVE has a "panel" that contains a possible CVSS score
+        # for both CVSS Version 3 and 2. This uses the CVSS v.3 score
+        # unless it doesn't have one, then it will use the CVSS v.2 score.
+        grade_target = target.find("div",{"id":"vulnCvssPanel"})
         
-        if c:
-            for a in ps.findAll('tr', attrs={'data-testid': view}):
-                newName = a.find('a').text
+        version3 = grade_target.find("div",{"id":"Vuln3CvssPanel"})
+        version3grade = version3.div.div.findNextSibling().span.span.a.text
+        if str(version3grade) == "N/A":
+            version2 = grade_target.find("div",{"id":"Vuln2CvssPanel"})
+            version2grade = version2.div.div.findNextSibling().span.span.a.text
+            severity = version2grade
             
-            if newName == CVE_name:
-                for a in ps.findAll('tr', attrs={'data-testid': view}):
-                    descriptions = a.find('p').text.replace('\\', r'\\\\').replace('"', r'\"')
-                
-                for a in ps.findAll('td', attrs={'nowrap': 'nowrap'}):
-                    severity = a.find('a')
-                    if severity.text == "":
-                        severity = a.find('a').next_sibling
-                    if severity.text == "":
-                        severity = "Not Applicable"
-                    severity_rating = severity.text
-
-                # CVE Neo4j input variable name - (CVE-number-number)
-                CVEInput2 = CVE_name[0:3] + CVE_name[4:8] + CVE_name[9:]
-
-                query = "({}:CVE {{type: "'"attack-pattern"'",id: "'"{}-{}"'",name: "'"{}"'",description: "'"{}"'",severity: "'"{}"'"}})".format(CVEInput2,CVE_name[4:8],CVE_name[9:],CVE_name,descriptions,severity_rating)
-
-                return query
-
-            else:
-                num += 1
-                return cvesearch(CVE_name, num)
         else:
-            print("No CVE found by the name of " + CVE_name)
+            severity = version3grade
+            
+        severities = severity.split(" ")
+        severity = severities[1]
+        severity_number = float(severities[0])
 
+        CVEInput2 = CVE_name[0:3] + CVE_name[4:8] + CVE_name[9:]
+
+        query = "({}:CVE {{type: "'"attack-pattern"'",id: "'"{}-{}"'",name: "'"{}"'",description: "'"{}"'",severity: "'"{}"'",severity_number: {}}})".format(CVEInput2,CVE_name[4:8],CVE_name[9:],CVE_name,description,severity,severity_number)
+
+        return query
+            
     except:
-        None
+        print("No CVE found by the name of " + CVE_name)
 
 
 #-----------------------------------------------------------------*
@@ -581,7 +576,9 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         for cve in cve_list:
             if not binsearch(usnode[5],cve):    # CVE id's are strings by default, but can still 
                 bisect.insort(usnode[5],cve)    # be magically be found via binary search
-                neo4j_create_nodes += "," + str(cvesearch("CVE-"+cve,0))
+                statement = str(cvesearch("CVE-"+cve))
+                if statement != "None":
+                    neo4j_create_nodes += "," + statement
 
             
             neo4j_match_statement += "match (a{0}:CVE) where a{0}.id = "'"{1}-{2}"'" ".format(count,cve[0:4],cve[5:])
