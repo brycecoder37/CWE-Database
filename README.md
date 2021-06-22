@@ -26,7 +26,7 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
 
 **Resources**
 - [CWE Info](https://cwe.mitre.org/)
-- [CVE Info](https://cve.mitre.org/cve/)
+- [CVE Info](https://nvd.nist.gov/)
 - [STIX Documentation](https://oasis-open.github.io/cti-documentation/)
 - [STIG Documentation](https://github.com/idaholab/STIG)
 
