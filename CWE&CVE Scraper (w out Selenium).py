@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 22                 |
+# Last Updated : June 24                 |
 #-----------------------------------------
 
 
@@ -42,8 +42,6 @@ def cvesearch(CVE_name):
     page_html = uClient.read()
     uClient.close()
     ps = soup(page_html, "html.parser")
-
-    view = "vuln-row-" + str(num)
     
     try:
         # Target is the main column with all of the CVE info
@@ -92,9 +90,6 @@ def cvesearch(CVE_name):
 # that when the program is made for several CWEs, that it won't
 # create duplicate nodes.
 # --------------
-# Neo4jBoolean: a simple True or False that will dictate whether the
-# Neo4j import method for the CWE information is ran or not.
-#---------------
 # cwe_cwe_bool: a boolean variable that determines whether the CWE
 # will create relationships or not. If it is a CWE that was a branch
 # of a relationship of an original node, it will not create any.
@@ -123,7 +118,7 @@ def cvesearch(CVE_name):
 # - CWE to CWE relationships
 #------------------------------------------------------------------+
 
-def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
+def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
     
     cwe_name = " "
 
@@ -151,9 +146,9 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
         # For when you want to loop through every CWE
         
         if CWE_id_number < 1350:
-            scrapeCWE(CWE_id_number+1,usnode,Neo4jBoolean,cwe_cwe_bool,original_info)
-        elif CWE_id_number == 1350:
-            scrapeCWE(2000,usnode,Neo4jBoolean,cwe_cwe_bool,original_info)
+            scrapeCWE(CWE_id_number+1,usnode,cwe_cwe_bool,original_info)
+        elif CWE_id_number == 1351:
+            scrapeCWE(2000,usnode,cwe_cwe_bool,original_info)
         exit()
         
     #---------------------------------------------------->
@@ -501,243 +496,241 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
     #
     #---------------------------------------------------------------------->
 
-    if Neo4jBoolean == True:
+    count = 1
+    neo4j_create_nodes = "create "
+    neo4j_match_statement = ""
+    neo4j_create_rels = "create "
 
-        count = 1
-        neo4j_create_nodes = "create "
-        neo4j_match_statement = ""
-        neo4j_create_rels = "create "
-
-        if binsearch(usnode[2],CWE_id_number) is False:
-            bisect.insort(usnode[2],CWE_id_number)
-            create_cwe_node = "create (z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
-            create_cwe_node += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
-            execute_commands(create_cwe_node)
+    if binsearch(usnode[2],CWE_id_number) is False:
+        bisect.insort(usnode[2],CWE_id_number)
+        create_cwe_node = "create (z:CWE {{name: "'"CWE-{1}"'",description:"'"{0}"'",id_number:{1}".format(cwe_name,CWE_id_number)
+        create_cwe_node += ",exploit_likelihood:"'"{}"'"}})".format(exploit_likelihood)
+        execute_commands(create_cwe_node)
 
 
-        #--------------Applicable Platform Relationship Code-----------------
-        
-        neo4j_match_statement += "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
+    #--------------Applicable Platform Relationship Code-----------------
     
-        for language in languages:
-            if language[0] not in usnode[0][0]:
-                usnode[0][0].append(language[0])
-                neo4j_create_nodes += ",(a{}:Language {{name: "'"{}"'"}})".format(count,language[0])
-                count += 1
-                
-            neo4j_match_statement += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count,language[0])
-            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1],count)
+    neo4j_match_statement += "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
+
+    for language in languages:
+        if language[0] not in usnode[0][0]:
+            usnode[0][0].append(language[0])
+            neo4j_create_nodes += ",(a{}:Language {{name: "'"{}"'"}})".format(count,language[0])
             count += 1
             
-        for os in operating_systems:
-            if os[0] not in usnode[0][1]:
-                usnode[0][1].append(os[0])
-                neo4j_create_nodes  += ", (a{}:OS {{name: "'"{}"'"}})".format(count,os[0])
-                count += 1
-                
-            neo4j_match_statement += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count,os[0])
-            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1],count)
-            count += 1
-
-        for arch in architectures:
-            if arch[0] not in usnode[0][2]:
-                usnode[0][2].append(arch[0])
-                neo4j_create_nodes += ",(a{}:Architecture {{name: "'"{}"'"}})".format(count,arch[0])
-                count += 1
-                
-            neo4j_match_statement += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count,arch[0])
-            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1],count)
-            count += 1
-
-        for paradigm in paradigms:
-            if paradigm[0] not in usnode[0][3]:
-                usnode[0][3].append(paradigm[0])
-                neo4j_create_nodes += ",(a{}:Paradigm {{name: "'"{}"'"}})".format(count,paradigm[0])
-                count += 1
-                
-            neo4j_match_statement += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count,paradigm[0])
-            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1],count)
-            count += 1
-
-        for tech in technologies:
-            if tech[0] not in usnode[0][4]:
-                usnode[0][4].append(tech[0])
-                neo4j_create_nodes += ",(a{}:Technology {{name: "'"{}"'"}})".format(count,tech[0])
-                count += 1
-
-            neo4j_match_statement += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count,tech[0])
-            neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
-            count += 1
-
-        #-------------------------------------------------------------------X
-
-        #-----------------------CVEs Relationship Code-----------------------
-            
-        for cve in cve_list:
-            if not binsearch(usnode[5],cve):    # CVE id's are strings by default, but can still 
-                bisect.insort(usnode[5],cve)    # be magically be found via binary search
-                statement = str(cvesearch("CVE-"+cve))
-                if statement != "None":
-                    neo4j_create_nodes += "," + statement
-
-            
-            neo4j_match_statement += "match (a{0}:CVE) where a{0}.id = "'"{1}-{2}"'" ".format(count,cve[0:4],cve[5:])
-            neo4j_create_rels += ",(a)-[:VULNERABLETO]->(a{})".format(count)
+        neo4j_match_statement += "match (a{0}:Language) where a{0}.name = "'"{1}"'" ".format(count,language[0])
+        neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(language[1],count)
+        count += 1
+        
+    for os in operating_systems:
+        if os[0] not in usnode[0][1]:
+            usnode[0][1].append(os[0])
+            neo4j_create_nodes  += ", (a{}:OS {{name: "'"{}"'"}})".format(count,os[0])
             count += 1
             
+        neo4j_match_statement += "match (a{0}:OS) where a{0}.name = "'"{1}"'" ".format(count,os[0])
+        neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(os[1],count)
+        count += 1
 
-        #-------------------------------------------------------------------X
+    for arch in architectures:
+        if arch[0] not in usnode[0][2]:
+            usnode[0][2].append(arch[0])
+            neo4j_create_nodes += ",(a{}:Architecture {{name: "'"{}"'"}})".format(count,arch[0])
+            count += 1
             
-        #-----------------------CAPECs Relationship Code---------------------
-            
-        for capec in capec_list:
-                
-            if binsearch(usnode[3],int(capec[0][6:])) is False:
-                bisect.insort(usnode[3],int(capec[0][6:]))
-                neo4j_create_nodes += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(int(capec[0][6:]),capec[1],count)
-                count += 1
+        neo4j_match_statement += "match (a{0}:Architecture) where a{0}.name = "'"{1}"'" ".format(count,arch[0])
+        neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(arch[1],count)
+        count += 1
 
-            neo4j_match_statement += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,int(capec[0][6:]))
-            neo4j_create_rels += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
+    for paradigm in paradigms:
+        if paradigm[0] not in usnode[0][3]:
+            usnode[0][3].append(paradigm[0])
+            neo4j_create_nodes += ",(a{}:Paradigm {{name: "'"{}"'"}})".format(count,paradigm[0])
+            count += 1
+            
+        neo4j_match_statement += "match (a{0}:Paradigm) where a{0}.name = "'"{1}"'" ".format(count,paradigm[0])
+        neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(paradigm[1],count)
+        count += 1
+
+    for tech in technologies:
+        if tech[0] not in usnode[0][4]:
+            usnode[0][4].append(tech[0])
+            neo4j_create_nodes += ",(a{}:Technology {{name: "'"{}"'"}})".format(count,tech[0])
             count += 1
 
-        #-------------------------------------------------------------------X
+        neo4j_match_statement += "match (a{0}:Technology) where a{0}.name = "'"{1}"'" ".format(count,tech[0])
+        neo4j_create_rels += ",(a)-[:FOUNDIN {{prevalence:"'"{}"'"}}]->(a{})".format(tech[1],count)
+        count += 1
 
-        #-----------------------Tools Relationship Code----------------------
+    #-------------------------------------------------------------------X
+
+    #-----------------------CVEs Relationship Code-----------------------
+        
+    for cve in cve_list:
+        if not binsearch(usnode[5],cve):    # CVE id's are strings by default, but can still 
+            bisect.insort(usnode[5],cve)    # be magically be found via binary search
+            statement = str(cvesearch("CVE-"+cve))
+            if statement != "None":
+                neo4j_create_nodes += "," + statement
+
+        
+        neo4j_match_statement += "match (a{0}:CVE) where a{0}.id = "'"{1}-{2}"'" ".format(count,cve[0:4],cve[5:])
+        neo4j_create_rels += ",(a)-[:VULNERABLETO]->(a{})".format(count)
+        count += 1
+        
+
+    #-------------------------------------------------------------------X
+        
+    #-----------------------CAPECs Relationship Code---------------------
+        
+    for capec in capec_list:
             
-        if "Class: Language-Independent" in ([i[0] for i in languages]):
-            for tool in ctools.all_tools:
+        if binsearch(usnode[3],int(capec[0][6:])) is False:
+            bisect.insort(usnode[3],int(capec[0][6:]))
+            neo4j_create_nodes += ",(a{2}:CAPEC {{id_number: {0}, description: "'"CAPEC-{0}: {1}"'"}})".format(int(capec[0][6:]),capec[1],count)
+            count += 1
+
+        neo4j_match_statement += "match (a{0}:CAPEC) where a{0}.id_number = {1} ".format(count,int(capec[0][6:]))
+        neo4j_create_rels += ",(a)<-[:ATTACKPATTERNFOR]-(a{})".format(count)
+        count += 1
+
+    #-------------------------------------------------------------------X
+
+    #-----------------------Tools Relationship Code----------------------
+        
+    if "Class: Language-Independent" in ([i[0] for i in languages]):
+        for tool in ctools.all_tools:
+            for product in tool[1:]:
+                if binsearch(product[1:],CWE_id_number):
+                    neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
+                    neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
+                    neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
+                    count += 1
+    else:
+        for tool in ctools.all_tools:
+            if tool[0] in ([i[0] for i in languages]):  
                 for product in tool[1:]:
                     if binsearch(product[1:],CWE_id_number):
                         neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
                         neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
                         neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
                         count += 1
-        else:
-            for tool in ctools.all_tools:
-                if tool[0] in ([i[0] for i in languages]):  
-                    for product in tool[1:]:
-                        if binsearch(product[1:],CWE_id_number):
-                            neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
-                            neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
-                            neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
-                            count += 1
 
-        #-------------------------------------------------------------------X
+    #-------------------------------------------------------------------X
 
-        #----------------Common Consequences Relationship Code---------------
+    #----------------Common Consequences Relationship Code---------------
 
 
-        for consequence in common_consequences: 
+    for consequence in common_consequences: 
 
-            if consequence[0] not in ([item[0] for item in usnode[4][3:]]):
-                usnode[4].append([consequence[0],[]])
-                neo4j_create_nodes += ",(a{}:Consequence {{name: "'"{}"'"}})".format(count,consequence[0])
-                usnode[4][0][consequence[0]] = usnode[4][1]
-                usnode[4][1] += 1
-                count += 1
-
-            cons_match_count = count
-            neo4j_match_statement += "match (a{0}:Consequence) where a{0}.name = "'"{1}"'" ".format(count,consequence[0])
-            neo4j_create_rels += ", (a)-[:VIOLATES]->(a{})".format(count)
+        if consequence[0] not in ([item[0] for item in usnode[4][3:]]):
+            usnode[4].append([consequence[0],[]])
+            neo4j_create_nodes += ",(a{}:Consequence {{name: "'"{}"'"}})".format(count,consequence[0])
+            usnode[4][0][consequence[0]] = usnode[4][1]
+            usnode[4][1] += 1
             count += 1
-            
 
-            for impact in consequence[1]:
-                if impact not in usnode[4][2]:
-                    usnode[4][2].append(impact)
-                    neo4j_create_nodes += ",(a{}:Impact {{name: "'"{}"'"}})".format(count,impact)
-                    count += 1
-
-                if impact not in usnode[4][usnode[4][0][consequence[0]]][1]:
-                    usnode[4][usnode[4][0][consequence[0]]][1].append(impact)
-                    
-                    neo4j_match_statement += "match (a{0}:Impact) where a{0}.name = "'"{1}"'" ".format(count,impact)
-                    neo4j_create_rels += ", (a{})-[:CAUSES]->(a{})".format(cons_match_count,count)
-                    count += 1
-                
+        cons_match_count = count
+        neo4j_match_statement += "match (a{0}:Consequence) where a{0}.name = "'"{1}"'" ".format(count,consequence[0])
+        neo4j_create_rels += ", (a)-[:VIOLATES]->(a{})".format(count)
+        count += 1
         
 
-        #-------------------------------------------------------------------X
+        for impact in consequence[1]:
+            if impact not in usnode[4][2]:
+                usnode[4][2].append(impact)
+                neo4j_create_nodes += ",(a{}:Impact {{name: "'"{}"'"}})".format(count,impact)
+                count += 1
 
-        #----------------Detection Methods Relationship Code-----------------
+            if impact not in usnode[4][usnode[4][0][consequence[0]]][1]:
+                usnode[4][usnode[4][0][consequence[0]]][1].append(impact)
+                
+                neo4j_match_statement += "match (a{0}:Impact) where a{0}.name = "'"{1}"'" ".format(count,impact)
+                neo4j_create_rels += ", (a{})-[:CAUSES]->(a{})".format(cons_match_count,count)
+                count += 1
             
-        for detmet in detection_methods:
+    
 
-            if detmet[0] not in usnode[1]:
-                usnode[1].append(detmet[0])
-                neo4j_create_nodes += ",(a{}:Detection_Method {{name: "'"{}"'"}})".format(count,detmet[0])
-                count += 1
+    #-------------------------------------------------------------------X
 
-            neo4j_match_statement += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count,detmet[0])
+    #----------------Detection Methods Relationship Code-----------------
+        
+    for detmet in detection_methods:
 
-            # If this block of code causes an error, it means the detection method did not have
-            # a listed effectiveness and will cause an error since it will not be a parsable string.
-            # So, the effectiveness will just be listed as N/A for that detection method for the CWE.
-            try:
-                if detmet[1][0] != " ":
-                    effectiveness = " ".join(detmet[1].split(" ")[1:])     
-                    neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
-                else:
-                    neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
-                count += 1
-            except:
+        if detmet[0] not in usnode[1]:
+            usnode[1].append(detmet[0])
+            neo4j_create_nodes += ",(a{}:Detection_Method {{name: "'"{}"'"}})".format(count,detmet[0])
+            count += 1
+
+        neo4j_match_statement += "match (a{0}:Detection_Method) where a{0}.name = "'"{1}"'" ".format(count,detmet[0])
+
+        # If this block of code causes an error, it means the detection method did not have
+        # a listed effectiveness and will cause an error since it will not be a parsable string.
+        # So, the effectiveness will just be listed as N/A for that detection method for the CWE.
+        try:
+            if detmet[1][0] != " ":
+                effectiveness = " ".join(detmet[1].split(" ")[1:])     
+                neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
+            else:
                 neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+            count += 1
+        except:
+            neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+            count += 1
+
+    #-------------------------------------------------------------------X
+
+            
+
+    #--------------------Importing all Data (except CWEs) into Neo4j------------------*
+
+    if len(neo4j_create_nodes) != 7 and len(neo4j_create_rels) != 7:
+        neo4j_create_nodes = neo4j_create_nodes[:7] + neo4j_create_nodes[8:]
+        neo4j_create_rels = neo4j_create_rels[:7] + neo4j_create_rels[8:]
+        
+        execute_commands(neo4j_create_nodes)
+        final_statement = neo4j_match_statement + neo4j_create_rels
+        execute_commands(final_statement)
+
+    #---------------------------------------------------------------------------------X
+
+        
+    
+    #------------------CWE - to - CWE Relationship Code------------------
+
+
+    if cwe_cwe_bool is True:
+    
+        cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
+        create_section = "create "
+
+        for relation in paired_relationships:
+
+            
+            # For relationship CWEs that haven't been made yet.
+            if not binsearch(usnode[2],relation[1]):
+                usnode = scrapeCWE(relation[1],usnode,False,[CWE_id_number,relation[0]])
+                
+            # For relationship CWEs that HAVE been made already.
+            else:
+                
+                cwe_cwe_sentence += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(count,relation[1])
+                create_section += ",(a)-[:{0}]->(a{1})".format(relation[0].upper(),count)
                 count += 1
-
-        #-------------------------------------------------------------------X
-
                 
-
-        #--------------------Importing all Data (except CWEs) into Neo4j------------------*
-
-        if len(neo4j_create_nodes) != 7 and len(neo4j_create_rels) != 7:
-            neo4j_create_nodes = neo4j_create_nodes[:7] + neo4j_create_nodes[8:]
-            neo4j_create_rels = neo4j_create_rels[:7] + neo4j_create_rels[8:]
-            
-            execute_commands(neo4j_create_nodes)
-            final_statement = neo4j_match_statement + neo4j_create_rels
+        # If there are no relationships for a CWE, the length of create_section
+        # ("create ") will be 7 and no clauses will be inputted into Neo4j.
+        if len(create_section) != 7:
+            create_section = create_section[:7] + create_section[8:]
+            final_statement = cwe_cwe_sentence + create_section
             execute_commands(final_statement)
-
-        #---------------------------------------------------------------------------------X
-
-            
         
-        #------------------CWE - to - CWE Relationship Code------------------
+    else:
 
-
-        if cwe_cwe_bool is True:
-        
-            cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(CWE_id_number)
-            create_section = "create "
-
-            for relation in paired_relationships:
-
-                
-                # For relationship CWEs that haven't been made yet.
-                if not binsearch(usnode[2],relation[1]):
-                    usnode = scrapeCWE(relation[1],usnode,True,False,[CWE_id_number,relation[0]])
-                    
-                # For relationship CWEs that HAVE been made already.
-                else:
-                    
-                    cwe_cwe_sentence += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(count,relation[1])
-                    create_section += ",(a)-[:{0}]->(a{1})".format(relation[0].upper(),count)
-                    count += 1
-                    
-            # If there are no relationships for a CWE, the length of create_section
-            # ("create ") will be 7 and no clauses will be inputted into Neo4j.
-            if len(create_section) != 7:
-                create_section = create_section[:7] + create_section[8:]
-                final_statement = cwe_cwe_sentence + create_section
-                execute_commands(final_statement)
-            
-        else:
-
-            cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(original_info[0])
-            cwe_cwe_sentence += "match (b:CWE) where b.id_number = {} ".format(CWE_id_number)
-            final_statement = cwe_cwe_sentence + "create (a)-[:{}]->(b)".format(original_info[1].upper())
-            execute_commands(final_statement)
+        cwe_cwe_sentence = "match (a:CWE) where a.id_number = {} ".format(original_info[0])
+        cwe_cwe_sentence += "match (b:CWE) where b.id_number = {} ".format(CWE_id_number)
+        final_statement = cwe_cwe_sentence + "create (a)-[:{}]->(b)".format(original_info[1].upper())
+        execute_commands(final_statement)
         
             
         
@@ -749,8 +742,56 @@ def scrapeCWE(CWE_id_number, usnode, Neo4jBoolean, cwe_cwe_bool, original_info):
 
     return usnode
 
+#-----------------------------------End of ScrapeCWE Code--------------------------------------------------X
 
 
+# addCWEType will add the relationship between CWE nodes to their
+# type nodes (Example: will connect CWE-79 to a 'Base' type node).
+
+def addCWETypes(usnode):
+    
+    # Makes CWE Type nodes first in Neo4j
+    create_nodes = "create (a:CWEType {name: "'"Base"'"}), (a1:CWEType {name: "'"Variant"'"})"
+    create_nodes += ", (a2:CWEType {name: "'"Class"'"}), (a3:CWEType {name: "'"Category"'"})"
+    create_nodes += ", (a4:CWEType {name: "'"Deprecated"'"}), (a5:CWEType {name: "'"View"'"})"
+    create_nodes += ", (a6:CWEType {name: "'"Composite"'"}), (a7:CWEType {name: "'"Pillar"'"})"
+    create_nodes += ", (a8:CWEType {name: "'"Chain"'"})"
+    execute_commands(create_nodes)
+
+    # Going to CWE-2000 (CWE Dictionary) to scrape types for all CWEs
+
+    my_url = ("https://cwe.mitre.org/data/definitions/2000.html")
+
+    uClient = uReq(my_url)
+    page_html = uClient.read()
+    uClient.close()
+
+    ps = soup(page_html, "html.parser")
+
+    # CWE-2000 page is ready to scrape
+
+    membership_section = ps.find("div",{"id":"Membership"})
+    membership_table = membership_section.div.findNextSibling().div.div.div
+    membership_table = membership_table.table.tbody
+
+    match_statement = ""
+    create_rels = "create "
+    type_count = 1
+
+    for row in membership_table:
+        type_ = row.td.findNextSibling()
+        type_name = type_.span.span.text.split(" ",maxsplit = 1)[0]
+        id_num = int(type_.findNextSibling().text)
+        if binsearch(usnode[2],id_num):
+            match_statement += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
+            type_count += 1
+            match_statement += "match (b{0}:CWEType) where b{0}.name = "'"{1}"'" ".format(type_count,type_name)
+            type_count += 1
+            create_rels += ",(a{})-[:ISTYPE]->(b{})".format(type_count - 2, type_count - 1)
+
+    if len(create_rels) != 7:
+        final_statement = match_statement + create_rels[:7] + create_rels[8:]
+        execute_commands(final_statement)
 
         
 
@@ -810,7 +851,9 @@ def forMain(node_list):
         cwe_to_add.append(answer)
     for cwe in cwe_to_add:
         print("----------------------------------------------")
-        usnode = scrapeCWE(cwe,usnode,True, True, None)
+        usnode = scrapeCWE(cwe,usnode,True,None)
+
+    addCWETypes(usnode)
 
 #----------------------------------------------------
 
@@ -824,7 +867,9 @@ def whileMain(node_list):
         id_num = int(input("Enter ID of the CWE to scrape or -1 to end: "))
         if (id_num == -1):
             break
-        usnode = scrapeCWE(id_num,usnode,True, True, None)
+        usnode = scrapeCWE(id_num,usnode,True,None)
+
+    addCWETypes(usnode)
 
 #----------------------------------------------------
 
@@ -836,9 +881,9 @@ def addNeoInfo(node_list):
     usnode = node_list
 
     for i in range(1, num_of_cwe + 1):
-        usnode = scrapeCWE(i,usnode,True, True, None)
-    
-    
+        usnode = scrapeCWE(i,usnode,True,None)
+        
+    addCWETypes(usnode)
 
 #--------------------------------------------------------X        
          
