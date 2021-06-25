@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 24                 |
+# Last Updated : June 25                 |
 #-----------------------------------------
 
 
@@ -35,13 +35,18 @@ def cvesearch(CVE_name):
     description = ""
     severity = ""
     target_row = ""
-    
-    my_url = ("https://nvd.nist.gov/vuln/detail/" + CVE_name)
-    
-    uClient = uReq(my_url)
-    page_html = uClient.read()
-    uClient.close()
-    ps = soup(page_html, "html.parser")
+
+    try:
+        
+        my_url = ("https://nvd.nist.gov/vuln/detail/" + CVE_name)
+        
+        uClient = uReq(my_url)
+        page_html = uClient.read()
+        uClient.close()
+        ps = soup(page_html, "html.parser")
+
+    except Exception as e:
+        print(e,e.args)
     
     try:
         # Target is the main column with all of the CVE info
@@ -149,7 +154,6 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
             scrapeCWE(CWE_id_number+1,usnode,cwe_cwe_bool,original_info)
         elif CWE_id_number == 1351:
             scrapeCWE(2000,usnode,cwe_cwe_bool,original_info)
-        exit()
         
     #---------------------------------------------------->
     # Finding the Applicable Platforms of the CWE
@@ -748,7 +752,7 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 # addCWEType will add the relationship between CWE nodes to their
 # type nodes (Example: will connect CWE-79 to a 'Base' type node).
 
-def addCWETypes(usnode):
+def addCWETypes():
     
     # Makes CWE Type nodes first in Neo4j
     create_nodes = "create (a:CWEType {name: "'"Base"'"}), (a1:CWEType {name: "'"Variant"'"})"
@@ -777,17 +781,19 @@ def addCWETypes(usnode):
     match_statement = ""
     create_rels = "create "
     type_count = 1
-
+    
     for row in membership_table:
         type_ = row.td.findNextSibling()
         type_name = type_.span.span.text.split(" ",maxsplit = 1)[0]
         id_num = int(type_.findNextSibling().text)
         if binsearch(usnode[2],id_num):
-            match_statement += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
+            match_statement = "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
             type_count += 1
             match_statement += "match (b{0}:CWEType) where b{0}.name = "'"{1}"'" ".format(type_count,type_name)
             type_count += 1
-            create_rels += ",(a{})-[:ISTYPE]->(b{})".format(type_count - 2, type_count - 1)
+            create_rels = "create (a{})-[:ISTYPE]->(b{})".format(type_count - 2, type_count - 1)
+            final_statement = match_statement + create_rels 
+            execute_commands(final_statement)
 
     if len(create_rels) != 7:
         final_statement = match_statement + create_rels[:7] + create_rels[8:]
