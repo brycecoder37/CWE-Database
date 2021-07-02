@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : June 25                 |
+# Last Updated : July 2                  |
 #-----------------------------------------
 
 
@@ -749,18 +749,10 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 #-----------------------------------End of ScrapeCWE Code--------------------------------------------------X
 
 
-# addCWEType will add the relationship between CWE nodes to their
-# type nodes (Example: will connect CWE-79 to a 'Base' type node).
+# addCWEType will add the CWE type to CWE nodes by setting 
+# another label to them (Example: add 'Base' label to CWE-79).
 
-def addCWETypes():
-    
-    # Makes CWE Type nodes first in Neo4j
-    create_nodes = "create (a:CWEType {name: "'"Base"'"}), (a1:CWEType {name: "'"Variant"'"})"
-    create_nodes += ", (a2:CWEType {name: "'"Class"'"}), (a3:CWEType {name: "'"Category"'"})"
-    create_nodes += ", (a4:CWEType {name: "'"Deprecated"'"}), (a5:CWEType {name: "'"View"'"})"
-    create_nodes += ", (a6:CWEType {name: "'"Composite"'"}), (a7:CWEType {name: "'"Pillar"'"})"
-    create_nodes += ", (a8:CWEType {name: "'"Chain"'"})"
-    execute_commands(create_nodes)
+def addCWETypes(node_list):
 
     # Going to CWE-2000 (CWE Dictionary) to scrape types for all CWEs
 
@@ -779,25 +771,26 @@ def addCWETypes():
     membership_table = membership_table.table.tbody
 
     match_statement = ""
-    create_rels = "create "
+    set_labels = ""
     type_count = 1
+    execution_counter = 1
     
     for row in membership_table:
         type_ = row.td.findNextSibling()
         type_name = type_.span.span.text.split(" ",maxsplit = 1)[0]
         id_num = int(type_.findNextSibling().text)
-        if binsearch(usnode[2],id_num):
-            match_statement = "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
+        if binsearch(usnode[2],id_num): indent everything below back into place
+            match_statement += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
+            set_labels += "set a{}:{} ".format(type_count,type_name)
             type_count += 1
-            match_statement += "match (b{0}:CWEType) where b{0}.name = "'"{1}"'" ".format(type_count,type_name)
-            type_count += 1
-            create_rels = "create (a{})-[:ISTYPE]->(b{})".format(type_count - 2, type_count - 1)
-            final_statement = match_statement + create_rels 
-            execute_commands(final_statement)
-
-    if len(create_rels) != 7:
-        final_statement = match_statement + create_rels[:7] + create_rels[8:]
-        execute_commands(final_statement)
+            execution_counter += 1
+            
+            if execution_counter % 100 == 0 or id_num == 1338:
+                final_statement = match_statement + set_labels
+                execute_commands(final_statement)
+                print("Executed : ", execution_counter)
+                match_statement = ""
+                set_labels = ""
 
         
 
