@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : July 2                  |
+# Last Updated : July 5                  |
 #-----------------------------------------
 
 
@@ -779,13 +779,15 @@ def addCWETypes(node_list):
         type_ = row.td.findNextSibling()
         type_name = type_.span.span.text.split(" ",maxsplit = 1)[0]
         id_num = int(type_.findNextSibling().text)
-        if binsearch(usnode[2],id_num): indent everything below back into place
+        if binsearch(usnode[2],id_num):
             match_statement += "match (a{0}:CWE) where a{0}.id_number = {1} ".format(type_count,id_num)
             set_labels += "set a{}:{} ".format(type_count,type_name)
             type_count += 1
             execution_counter += 1
             
-            if execution_counter % 100 == 0 or id_num == 1338:
+            # Makes this part much more efficient by executing
+            # in large blocks rather than individual clauses.
+            if execution_counter % 100 == 0 or id_num == max(usnode[2]):
                 final_statement = match_statement + set_labels
                 execute_commands(final_statement)
                 print("Executed : ", execution_counter)
