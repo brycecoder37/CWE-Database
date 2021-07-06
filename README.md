@@ -1,5 +1,5 @@
 # MSU Cybersecurity REU Project
-## Populating CWE/CVE Database
+## CWE/CVE Information Database
 ### Authors: Bryce Leighton & Tristan Chavez
 
 **Description**
@@ -19,7 +19,6 @@ The next part of this project will be linking the Neo4j database to STIG, a tool
 - Neo4j
 - Python
   - *BeautifulSoup*
-  - *Selenium*
 - STIG - Structured Threat Intelligence Graph
   - *STIX*
   - *OrientDB*
