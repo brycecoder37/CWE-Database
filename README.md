@@ -4,7 +4,7 @@
 
 **Description**
 
-This repository contains Python code that can easily populate a Neo4j database with useful information regarding CWEs and CVEs. We used BeautifulSoup and Selenium to web scrape and automate the extraction of data. Within the Python program, it then stores this information inside of a Neo4j database, granted you have the database open while running the program.
+This repository contains Python code that can easily populate a Neo4j database with useful information regarding CWEs and CVEs. We used BeautifulSoup to web scrape and automate the extraction of data. Within the Python program, it then stores this information inside of a Neo4j database, granted you have the database open while running the program.
 <br />\
 The next part of this project will be linking the Neo4j database to STIG, a tool developed by INL. Our goal to achieve this is to convert our Neo4j database into a JSON file whose syntax can be changed slightly so that it may be a valid input for STIX. From there, we should be able to simply input the STIX bundle(s) into STIG.
 
