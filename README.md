@@ -9,7 +9,7 @@ This repository contains import data that can be used to view a CWE database in 
 
 >###  Please read the directions [**here**](https://github.com/brycecoder37/CWE-Database/blob/main/View-Instructions.md) for importing and viewing our Neo4j database.
 
-The next part of this project will be linking the Neo4j database to STIG, a tool developed by INL. Our goal to achieve this is to convert our Neo4j database into a JSON file whose syntax can be changed slightly so that it may be a valid input for STIX. From there, we should be able to simply input the STIX bundle(s) into STIG.
+The next part of this project will be linking the Neo4j database to STIG, a tool developed by INL. Our goal to achieve this is to convert our Neo4j database into readable JSON  by STIX. From there, we should be able to create and input STIX bundles into STIG.
 
 ---
 
