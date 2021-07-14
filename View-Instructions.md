@@ -24,5 +24,6 @@
 2. In the top right, press `+ Add` to add file.
 3. Select neo4j.dump from the supplied github files, and it should then show up in the "files" section.
 4. To the right of neo4j.dump press the `...` button, and select `Create new DBMS from dump`.
-5. After creating the database, you should be all set up to use/view the database.
+   - Make sure your new database's Neo4j version matches the Neo4j version of the dump file.
+6. After creating the database, you should be all set up to use/view the database.
    
