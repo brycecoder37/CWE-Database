@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 import cwetools as ctools
 
 #-----------------------------------------
-# Last Updated : July 5                  |
+# Last Updated : July 14                 |
 #-----------------------------------------
 
 
@@ -330,7 +330,10 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 
         for i in range(int(len(cve_table) / 2) - 1):
             cve_item = cve_item.findNextSibling()
-            cve_list.append(cve_item.a.contents[0][4:])
+            cve_id = cve_item.a.contents[0][4:]
+            if cve_id[-1] == ",":
+                cve_id = cve_id[0:-1]
+            cve_list.append(cve_id)
 
     except:
         None
@@ -470,11 +473,11 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 
 
             for i in range(len(relationships)):
-                paired_relationships.append([relationships[i],id_numbers[i],names[i]])
+                paired_relationships.append([relationships[i],id_numbers[i]])
                           
         except Exception as e:
             None
-            #print(e,e.args) In case you need to see the exception
+            # print(e,e.args) #In case you need to see the exception
 
     #-----------------End of Relationships---------------X
 
@@ -600,27 +603,30 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 
     #-------------------------------------------------------------------X
 
-    #-----------------------Tools Relationship Code----------------------
-        
-    if "Class: Language-Independent" in ([i[0] for i in languages]):
-        for tool in ctools.all_tools:
-            for product in tool[1:]:
-                if binsearch(product[1:],CWE_id_number):
-                    neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
-                    neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
-                    neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
-                    count += 1
-    else:
-        for tool in ctools.all_tools:
-            if tool[0] in ([i[0] for i in languages]):  
-                for product in tool[1:]:
-                    if binsearch(product[1:],CWE_id_number):
-                        neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
-                        neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
-                        neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
-                        count += 1
+        # A better way to connect tools is to do them separately in
+        # the cwetools.py file after you have run this program.
 
-    #-------------------------------------------------------------------X
+##    #-----------------------Tools Relationship Code----------------------
+##        
+##    if "Class: Language-Independent" in ([i[0] for i in languages]):
+##        for tool in ctools.all_tools:
+##            for product in tool[1:]:
+##                if binsearch(product[1:],CWE_id_number):
+##                    neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
+##                    neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
+##                    neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
+##                    count += 1
+##    else:
+##        for tool in ctools.all_tools:
+##            if tool[0] in ([i[0] for i in languages]):  
+##                for product in tool[1:]:
+##                    if binsearch(product[1:],CWE_id_number):
+##                        neo4j_match_statement += "match (a{0}:Tool) where a{0}.name = "'"{1}"'" ".format(count,product[0])
+##                        neo4j_match_statement += "and a{}.language = "'"{}"'" ".format(count,tool[0])
+##                        neo4j_create_rels += ", (a)<-[:FINDS]-(a{})".format(count)
+##                        count += 1
+##
+##    #-------------------------------------------------------------------X
 
     #----------------Common Consequences Relationship Code---------------
 
@@ -674,12 +680,12 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
         try:
             if detmet[1][0] != " ":
                 effectiveness = " ".join(detmet[1].split(" ")[1:])     
-                neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"{}"'"}}]->(a{})".format(effectiveness,count)
+                neo4j_create_rels += ",(a)<-[:DETECTS {{effectiveness:"'"{}"'"}}]-(a{})".format(effectiveness,count)
             else:
-                neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+                neo4j_create_rels += ",(a)<-[:DETECTS {{effectiveness:"'"N/A"'"}}]-(a{})".format(count)
             count += 1
         except:
-            neo4j_create_rels += ",(a)-[:DETECTEDBY {{effectiveness:"'"N/A"'"}}]->(a{})".format(count)
+            neo4j_create_rels += ",(a)<-[:DETECTS {{effectiveness:"'"N/A"'"}}]-(a{})".format(count)
             count += 1
 
     #-------------------------------------------------------------------X
@@ -687,12 +693,17 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
             
 
     #--------------------Importing all Data (except CWEs) into Neo4j------------------*
-
     if len(neo4j_create_nodes) != 7 and len(neo4j_create_rels) != 7:
         neo4j_create_nodes = neo4j_create_nodes[:7] + neo4j_create_nodes[8:]
         neo4j_create_rels = neo4j_create_rels[:7] + neo4j_create_rels[8:]
         
         execute_commands(neo4j_create_nodes)
+        final_statement = neo4j_match_statement + neo4j_create_rels
+        execute_commands(final_statement)
+
+    elif len(neo4j_create_nodes) == 7 and len(neo4j_create_rels) != 7:
+        neo4j_create_rels = neo4j_create_rels[:7] + neo4j_create_rels[8:]
+
         final_statement = neo4j_match_statement + neo4j_create_rels
         execute_commands(final_statement)
 
@@ -709,7 +720,6 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
         create_section = "create "
 
         for relation in paired_relationships:
-
             
             # For relationship CWEs that haven't been made yet.
             if not binsearch(usnode[2],relation[1]):
@@ -752,7 +762,7 @@ def scrapeCWE(CWE_id_number, usnode, cwe_cwe_bool, original_info):
 # addCWEType will add the CWE type to CWE nodes by setting 
 # another label to them (Example: add 'Base' label to CWE-79).
 
-def addCWETypes(node_list):
+def addCWETypes(usnode):
 
     # Going to CWE-2000 (CWE Dictionary) to scrape types for all CWEs
 
@@ -773,7 +783,7 @@ def addCWETypes(node_list):
     match_statement = ""
     set_labels = ""
     type_count = 1
-    execution_counter = 1
+    execution_counter = 0
     
     for row in membership_table:
         type_ = row.td.findNextSibling()
@@ -784,7 +794,7 @@ def addCWETypes(node_list):
             set_labels += "set a{}:{} ".format(type_count,type_name)
             type_count += 1
             execution_counter += 1
-            
+
             # Makes this part much more efficient by executing
             # in large blocks rather than individual clauses.
             if execution_counter % 100 == 0 or id_num == max(usnode[2]):
@@ -894,8 +904,6 @@ def main():
 
     consequence_dict = {}
     consequence_index = 3
-
-    execute_commands(ctools.create_tools())
     
     used_nodes_list = [[[],[],[],[],[]],[],[],[],[consequence_dict,consequence_index,[]],[]]
 ##    Indices:                 0         1  2  3                    4                     5
@@ -919,6 +927,10 @@ def main():
         whileMain(used_nodes_list)
     elif answer == 3:
         addNeoInfo(used_nodes_list)
+
+    # It's faster to delete duplicate relations at the end, than to check each time.
+    delete_duplicate_rels = "match (s)-[r]->(e)with s,e,type(r) as typ, tail(collect(r)) as coll foreach(x in coll | delete x)"
+    execute_commands(delete_duplicate_rels)
     
 
 main()
