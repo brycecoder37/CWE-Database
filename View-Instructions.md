@@ -17,7 +17,7 @@
 10. Drag and drop the Style_db.txt file into the Neo4j browser, and click `paste in editor`.
 11. In the Browser command line, type *:style* at the beginning of the query, <br>
     so that the command line reads `:style ` with the styling content below it. 
-12. You should now be all set up to use/view the database.
+12. Once entering the command, you should now be all set up to use/view the database.
 ---
 ### If you *have* Neo4j downloaded:
 1. Open Neo4j Desktop and go to your choice of project folder.
@@ -25,5 +25,8 @@
 3. Select neo4j.dump from the supplied github files, and it should then show up in the "files" section.
 4. To the right of neo4j.dump press the `...` button, and select `Create new DBMS from dump`.
    - Make sure your new database's Neo4j version matches the Neo4j version of the dump file.
-6. After creating the database, you should be all set up to use/view the database.
+5. Drag and drop the Style_db.txt file into the Neo4j browser, and click `paste in editor`.
+6. In the Browser command line, type *:style* at the beginning of the query, <br>
+    so that the command line reads `:style ` with the styling content below it.
+7. After entering the command, you should be all set up to use/view the database.
    
