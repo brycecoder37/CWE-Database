@@ -3,7 +3,7 @@
 > ***First***, download the database files [**here**](https://github.com/brycecoder37/CWE-Database/tree/main/Import%20Data).
 ---
 ### If you *do not* have Neo4j downloaded:
-1. Go to [Neo4j Aura](https://neo4j.com/cloud/aura/).
+1. Go to [Neo4j Aura](https://neo4j.com/cloud/aura/).  -----**Important:** *Currently Neo4j Aura does not work for 4.3.2 dump files, but they are supposedly close to resolving it*
 2. Create Neo4j account.
 3. Click on `create database`.
 4. Choose free version (top option), and click `create database` at the bottom.
